@@ -7,8 +7,8 @@ export interface ElectronAPI {
   writeToSession: (id: string, data: string) => void;
   resizeSession: (id: string, cols: number, rows: number) => void;
   killSession: (id: string) => void;
-  onPtyData: (callback: (id: string, data: string) => void) => void;
-  onPtyExit: (callback: (id: string, exitCode: number) => void) => void;
+  onPtyData: (callback: (id: string, data: string) => void) => () => void;
+  onPtyExit: (callback: (id: string, exitCode: number) => void) => () => void;
 
   // Database - Groups
   getAllGroups: () => Promise<Group[]>;

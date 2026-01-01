@@ -5,9 +5,10 @@ import { useGroups } from './store/groups';
 import './styles/global.css';
 
 const App: React.FC = () => {
-  const { groups, createGroup } = useGroups();
+  const { groups, loading: groupsLoading, createGroup } = useGroups();
   const {
     sessions,
+    loading: sessionsLoading,
     activeSessionId,
     setActiveSessionId,
     createSession,
@@ -19,11 +20,34 @@ const App: React.FC = () => {
   const homedir = window.electronAPI.homedir;
   const counts = getStateCounts();
   const activeSession = sessions.find(s => s.id === activeSessionId);
+  const isLoading = groupsLoading || sessionsLoading;
 
-  const handleNewSession = (groupId: string) => {
+  const handleNewSession = async (groupId: string) => {
+    if (!groupId) {
+      console.error('Cannot create session: no group available');
+      return;
+    }
     const count = getSessionsByGroup(groupId).length + 1;
-    createSession(groupId, `Session ${count}`, homedir);
+    await createSession(groupId, `Session ${count}`, homedir);
   };
+
+  const handleCreateGroup = async () => {
+    await createGroup(`Group ${groups.length + 1}`);
+  };
+
+  const handleRemoveSession = async (id: string) => {
+    await removeSession(id);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="app loading">
+        <div className="loading-content">
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -32,7 +56,7 @@ const App: React.FC = () => {
           <h2>Groups</h2>
           <button
             className="icon-button"
-            onClick={() => createGroup(`Group ${groups.length + 1}`)}
+            onClick={handleCreateGroup}
             title="New Group"
           >
             +
@@ -81,16 +105,17 @@ const App: React.FC = () => {
                 className="tab-close"
                 onClick={(e) => {
                   e.stopPropagation();
-                  removeSession(session.id);
+                  handleRemoveSession(session.id);
                 }}
               >
-                ×
+                x
               </button>
             </span>
           ))}
           <button
             className="tab new-tab"
-            onClick={() => handleNewSession(groups[0]?.id || 'default')}
+            onClick={() => groups[0] && handleNewSession(groups[0].id)}
+            disabled={!groups.length}
           >
             +
           </button>
@@ -105,7 +130,10 @@ const App: React.FC = () => {
           ) : (
             <div className="no-session">
               <p>No active session</p>
-              <button onClick={() => handleNewSession(groups[0]?.id || 'default')}>
+              <button
+                onClick={() => groups[0] && handleNewSession(groups[0].id)}
+                disabled={!groups.length}
+              >
                 Create Session
               </button>
             </div>
@@ -114,10 +142,10 @@ const App: React.FC = () => {
       </main>
 
       <footer className="status-bar">
-        <span className="status-item waiting">● {counts.waiting} waiting</span>
-        <span className="status-item working">◐ {counts.working} working</span>
-        <span className="status-item idle">○ {counts.idle} idle</span>
-        <span className="status-item error">⚠ {counts.error} errors</span>
+        <span className="status-item waiting">* {counts.waiting} waiting</span>
+        <span className="status-item working">o {counts.working} working</span>
+        <span className="status-item idle">o {counts.idle} idle</span>
+        <span className="status-item error">! {counts.error} errors</span>
       </footer>
     </div>
   );

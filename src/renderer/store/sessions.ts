@@ -1,41 +1,85 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Session, SessionState } from '../../shared/types';
 
 export function useSessions() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const createSession = useCallback((groupId: string, name: string, workingDir: string): Session => {
-    const session: Session = {
-      id: uuidv4(),
-      groupId,
-      name,
-      workingDir,
-      state: 'idle',
-      shellType: 'bash',
-      order: sessions.filter(s => s.groupId === groupId).length,
-      createdAt: new Date(),
-      lastActivityAt: new Date(),
+  // Load sessions from database on mount
+  useEffect(() => {
+    const loadSessions = async () => {
+      try {
+        const dbSessions = await window.electronAPI.getAllSessions();
+        setSessions(dbSessions);
+      } catch (error) {
+        console.error('Failed to load sessions:', error);
+      } finally {
+        setLoading(false);
+      }
     };
-
-    setSessions(prev => [...prev, session]);
-    setActiveSessionId(session.id);
-    return session;
-  }, [sessions]);
-
-  const updateSessionState = useCallback((id: string, state: SessionState) => {
-    setSessions(prev => prev.map(s =>
-      s.id === id
-        ? { ...s, state, lastActivityAt: new Date() }
-        : s
-    ));
+    loadSessions();
   }, []);
 
-  const removeSession = useCallback((id: string) => {
-    setSessions(prev => prev.filter(s => s.id !== id));
-    if (activeSessionId === id) {
-      setActiveSessionId(null);
+  const createSession = useCallback(async (groupId: string, name: string, workingDir: string): Promise<Session> => {
+    return new Promise((resolve, reject) => {
+      setSessions(prev => {
+        const session: Session = {
+          id: uuidv4(),
+          groupId,
+          name,
+          workingDir,
+          state: 'idle',
+          shellType: 'bash',
+          order: prev.filter(s => s.groupId === groupId).length,
+          createdAt: new Date(),
+          lastActivityAt: new Date(),
+        };
+
+        // Persist asynchronously
+        window.electronAPI.createDbSession(session)
+          .then(() => {
+            setActiveSessionId(session.id);
+            resolve(session);
+          })
+          .catch((error) => {
+            console.error('Failed to create session:', error);
+            // Rollback by removing the session
+            setSessions(current => current.filter(s => s.id !== session.id));
+            reject(error);
+          });
+
+        return [...prev, session]; // Optimistic update
+      });
+    });
+  }, []);
+
+  const updateSessionState = useCallback(async (id: string, state: SessionState) => {
+    try {
+      const updates = { state, lastActivityAt: new Date() };
+      await window.electronAPI.updateDbSession(id, updates);
+      setSessions(prev => prev.map(s =>
+        s.id === id
+          ? { ...s, ...updates }
+          : s
+      ));
+    } catch (error) {
+      console.error('Failed to update session state:', error);
+      // Don't update state - DB failed
+    }
+  }, []);
+
+  const removeSession = useCallback(async (id: string) => {
+    try {
+      await window.electronAPI.deleteDbSession(id);
+      setSessions(prev => prev.filter(s => s.id !== id));
+      if (activeSessionId === id) {
+        setActiveSessionId(null);
+      }
+    } catch (error) {
+      console.error('Failed to remove session:', error);
+      // Don't update state - DB failed
     }
   }, [activeSessionId]);
 
@@ -54,6 +98,7 @@ export function useSessions() {
 
   return {
     sessions,
+    loading,
     activeSessionId,
     setActiveSessionId,
     createSession,

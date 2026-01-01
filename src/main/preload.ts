@@ -18,10 +18,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // PTY events
   onPtyData: (callback: (id: string, data: string) => void) => {
-    ipcRenderer.on('pty:data', (_, id, data) => callback(id, data));
+    const listener = (_: Electron.IpcRendererEvent, id: string, data: string) => callback(id, data);
+    ipcRenderer.on('pty:data', listener);
+    return () => {
+      ipcRenderer.removeListener('pty:data', listener);
+    };
   },
   onPtyExit: (callback: (id: string, exitCode: number) => void) => {
-    ipcRenderer.on('pty:exit', (_, id, exitCode) => callback(id, exitCode));
+    const listener = (_: Electron.IpcRendererEvent, id: string, exitCode: number) => callback(id, exitCode);
+    ipcRenderer.on('pty:exit', listener);
+    return () => {
+      ipcRenderer.removeListener('pty:exit', listener);
+    };
   },
 
   // Database - Groups

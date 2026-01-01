@@ -43,7 +43,7 @@ const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd }) => {
     window.electronAPI.createSession(sessionId, cwd);
 
     // Handle PTY data
-    window.electronAPI.onPtyData((id, data) => {
+    const cleanupPtyData = window.electronAPI.onPtyData((id, data) => {
       if (id === sessionId) {
         term.write(data);
       }
@@ -72,6 +72,7 @@ const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd }) => {
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      cleanupPtyData();
       window.electronAPI.killSession(sessionId);
       term.dispose();
     };
