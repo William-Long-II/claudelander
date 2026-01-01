@@ -61,3 +61,20 @@ body {
   padding: 0 12px;
   font-size: 12px;
 }
+
+.tab {
+  padding: 6px 16px;
+  background: #2d2d2d;
+  border: 1px solid #3c3c3c;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  margin-right: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tab.active {
+  background: #1e1e1e;
+  border-bottom: 1px solid #1e1e1e;
+  margin-bottom: -1px;
+}

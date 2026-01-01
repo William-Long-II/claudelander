@@ -1,4 +1,5 @@
 import React from 'react';
+import Terminal from './components/Terminal';
 import './styles/global.css';
 
 const App: React.FC = () => {
@@ -8,11 +9,15 @@ const App: React.FC = () => {
         <h2>Groups</h2>
       </aside>
       <main className="main">
-        <div className="tabs">Tabs</div>
-        <div className="terminal-area">Terminal Area</div>
+        <div className="tabs">
+          <span className="tab active">Session 1</span>
+        </div>
+        <div className="terminal-area">
+          <Terminal sessionId="demo-session-1" />
+        </div>
       </main>
       <footer className="status-bar">
-        Status Bar
+        ● 0 waiting │ ◐ 0 working │ ○ 1 idle │ ⚠ 0 errors
       </footer>
     </div>
   );
