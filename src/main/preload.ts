@@ -7,8 +7,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   homedir: os.homedir(),
 
   // PTY operations
-  createSession: (id: string, cwd: string) =>
-    ipcRenderer.invoke('pty:create', id, cwd),
+  createSession: (id: string, cwd: string, launchClaude: boolean = false) =>
+    ipcRenderer.invoke('pty:create', id, cwd, launchClaude),
   writeToSession: (id: string, data: string) =>
     ipcRenderer.send('pty:write', id, data),
   resizeSession: (id: string, cols: number, rows: number) =>
@@ -29,6 +29,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('pty:exit', listener);
     return () => {
       ipcRenderer.removeListener('pty:exit', listener);
+    };
+  },
+  onStateChange: (callback: (event: { sessionId: string; state: string; event: string; timestamp: number }) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, event: any) => callback(event);
+    ipcRenderer.on('state:change', listener);
+    return () => {
+      ipcRenderer.removeListener('state:change', listener);
     };
   },
 

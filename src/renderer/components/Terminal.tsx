@@ -7,9 +7,10 @@ import '../styles/terminal.css';
 interface TerminalProps {
   sessionId: string;
   cwd: string;
+  launchClaude?: boolean;
 }
 
-const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd }) => {
+const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd, launchClaude = true }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -40,7 +41,7 @@ const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd }) => {
     fitAddonRef.current = fitAddon;
 
     // Create PTY session
-    window.electronAPI.createSession(sessionId, cwd);
+    window.electronAPI.createSession(sessionId, cwd, launchClaude);
 
     // Handle PTY data
     const cleanupPtyData = window.electronAPI.onPtyData((id, data) => {
@@ -76,7 +77,7 @@ const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd }) => {
       window.electronAPI.killSession(sessionId);
       term.dispose();
     };
-  }, [sessionId, cwd]);
+  }, [sessionId, cwd, launchClaude]);
 
   return <div ref={terminalRef} className="terminal-container" />;
 };

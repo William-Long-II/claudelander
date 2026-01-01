@@ -1,14 +1,22 @@
 import { Group, Session } from '../../shared/types';
 
+interface StateChangeEvent {
+  sessionId: string;
+  state: string;
+  event: string;
+  timestamp: number;
+}
+
 export interface ElectronAPI {
   platform: string;
   homedir: string;
-  createSession: (id: string, cwd: string) => Promise<void>;
+  createSession: (id: string, cwd: string, launchClaude?: boolean) => Promise<void>;
   writeToSession: (id: string, data: string) => void;
   resizeSession: (id: string, cols: number, rows: number) => void;
   killSession: (id: string) => void;
   onPtyData: (callback: (id: string, data: string) => void) => () => void;
   onPtyExit: (callback: (id: string, exitCode: number) => void) => () => void;
+  onStateChange: (callback: (event: StateChangeEvent) => void) => () => void;
 
   // Database - Groups
   getAllGroups: () => Promise<Group[]>;

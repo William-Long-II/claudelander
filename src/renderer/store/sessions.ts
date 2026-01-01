@@ -20,9 +20,27 @@ export function useSessions() {
       }
     };
     loadSessions();
+
+    // Listen for state changes from hooks
+    const cleanupStateChange = window.electronAPI.onStateChange((event) => {
+      setSessions(prev => prev.map(s =>
+        s.id === event.sessionId
+          ? { ...s, state: event.state as SessionState, lastActivityAt: new Date(event.timestamp * 1000) }
+          : s
+      ));
+    });
+
+    return () => {
+      cleanupStateChange();
+    };
   }, []);
 
-  const createSession = useCallback(async (groupId: string, name: string, workingDir: string): Promise<Session> => {
+  const createSession = useCallback(async (
+    groupId: string,
+    name: string,
+    workingDir: string,
+    launchClaude: boolean = true
+  ): Promise<Session> => {
     return new Promise((resolve, reject) => {
       setSessions(prev => {
         const session: Session = {
@@ -31,7 +49,7 @@ export function useSessions() {
           name,
           workingDir,
           state: 'idle',
-          shellType: 'bash',
+          shellType: launchClaude ? 'claude' : 'bash',
           order: prev.filter(s => s.groupId === groupId).length,
           createdAt: new Date(),
           lastActivityAt: new Date(),

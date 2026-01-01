@@ -28,7 +28,7 @@ const App: React.FC = () => {
       return;
     }
     const count = getSessionsByGroup(groupId).length + 1;
-    await createSession(groupId, `Session ${count}`, homedir);
+    await createSession(groupId, `Session ${count}`, homedir, true); // launchClaude = true
   };
 
   const handleCreateGroup = async () => {
@@ -126,6 +126,7 @@ const App: React.FC = () => {
               key={activeSession.id}
               sessionId={activeSession.id}
               cwd={activeSession.workingDir}
+              launchClaude={activeSession.shellType === 'claude'}
             />
           ) : (
             <div className="no-session">

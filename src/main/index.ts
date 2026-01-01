@@ -4,13 +4,28 @@ import { ptyManager } from './pty-manager';
 import { getDatabase, closeDatabase } from './database';
 import * as groupsRepo from './repositories/groups';
 import * as sessionsRepo from './repositories/sessions';
+import { StateMonitor } from './state-monitor';
 import { Group, Session } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
+let stateMonitor: StateMonitor | null = null;
 
 function createWindow(): void {
   // Initialize database
   getDatabase();
+
+  // Start state monitor
+  stateMonitor = new StateMonitor(ptyManager.getSocketPath());
+  stateMonitor.start();
+
+  stateMonitor.on('stateChange', (event) => {
+    mainWindow?.webContents.send('state:change', event);
+    // Also update database
+    sessionsRepo.updateSession(event.sessionId, {
+      state: event.state,
+      lastActivityAt: new Date(),
+    });
+  });
 
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -39,8 +54,8 @@ function createWindow(): void {
 }
 
 // IPC Handlers
-ipcMain.handle('pty:create', async (_, id: string, cwd: string) => {
-  ptyManager.createSession(id, cwd);
+ipcMain.handle('pty:create', async (_, id: string, cwd: string, launchClaude: boolean = false) => {
+  ptyManager.createSession(id, cwd, launchClaude);
 });
 
 ipcMain.on('pty:write', (_, id: string, data: string) => {
@@ -104,5 +119,6 @@ app.on('activate', () => {
 });
 
 app.on('before-quit', () => {
+  stateMonitor?.stop();
   closeDatabase();
 });
