@@ -16,6 +16,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "better-sqlite3": "^12.5.0",
     "electron": "^39.2.7",
     "electron-builder": "^26.0.12",
     "node-pty": "^1.1.0",
@@ -27,6 +28,7 @@
     "xterm-addon-webgl": "^0.16.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.0.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",

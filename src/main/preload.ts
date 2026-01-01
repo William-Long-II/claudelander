@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import * as os from 'os';
+import { Group, Session } from '../shared/types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
@@ -22,4 +23,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onPtyExit: (callback: (id: string, exitCode: number) => void) => {
     ipcRenderer.on('pty:exit', (_, id, exitCode) => callback(id, exitCode));
   },
+
+  // Database - Groups
+  getAllGroups: (): Promise<Group[]> =>
+    ipcRenderer.invoke('db:groups:getAll'),
+  createGroup: (group: Group): Promise<void> =>
+    ipcRenderer.invoke('db:groups:create', group),
+  updateGroup: (id: string, updates: Partial<Group>): Promise<void> =>
+    ipcRenderer.invoke('db:groups:update', id, updates),
+  deleteGroup: (id: string): Promise<void> =>
+    ipcRenderer.invoke('db:groups:delete', id),
+
+  // Database - Sessions
+  getAllSessions: (): Promise<Session[]> =>
+    ipcRenderer.invoke('db:sessions:getAll'),
+  createDbSession: (session: Session): Promise<void> =>
+    ipcRenderer.invoke('db:sessions:create', session),
+  updateDbSession: (id: string, updates: Partial<Session>): Promise<void> =>
+    ipcRenderer.invoke('db:sessions:update', id, updates),
+  deleteDbSession: (id: string): Promise<void> =>
+    ipcRenderer.invoke('db:sessions:delete', id),
 });
