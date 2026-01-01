@@ -6,9 +6,10 @@ import '../styles/terminal.css';
 
 interface TerminalProps {
   sessionId: string;
+  cwd: string;
 }
 
-const Terminal: React.FC<TerminalProps> = ({ sessionId }) => {
+const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -38,21 +39,43 @@ const Terminal: React.FC<TerminalProps> = ({ sessionId }) => {
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // Demo text
-    term.writeln('Claudelander Terminal');
-    term.writeln('Session: ' + sessionId);
-    term.writeln('');
+    // Create PTY session
+    window.electronAPI.createSession(sessionId, cwd);
 
+    // Handle PTY data
+    window.electronAPI.onPtyData((id, data) => {
+      if (id === sessionId) {
+        term.write(data);
+      }
+    });
+
+    // Handle user input
+    term.onData((data) => {
+      window.electronAPI.writeToSession(sessionId, data);
+    });
+
+    // Handle resize
     const handleResize = () => {
       fitAddon.fit();
+      const { cols, rows } = term;
+      window.electronAPI.resizeSession(sessionId, cols, rows);
     };
+
     window.addEventListener('resize', handleResize);
+
+    // Initial resize
+    setTimeout(() => {
+      fitAddon.fit();
+      const { cols, rows } = term;
+      window.electronAPI.resizeSession(sessionId, cols, rows);
+    }, 100);
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      window.electronAPI.killSession(sessionId);
       term.dispose();
     };
-  }, [sessionId]);
+  }, [sessionId, cwd]);
 
   return <div ref={terminalRef} className="terminal-container" />;
 };
