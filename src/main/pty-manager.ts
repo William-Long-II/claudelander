@@ -1,14 +1,27 @@
 import * as pty from 'node-pty';
+import * as fs from 'fs';
 import { EventEmitter } from 'events';
+import { getClaudeCommand, getSocketPath } from './claude-launcher';
 
 interface PtySession {
   id: string;
   pty: pty.IPty;
   cwd: string;
+  isClaudeSession: boolean;
 }
 
 class PtyManager extends EventEmitter {
   private sessions: Map<string, PtySession> = new Map();
+  private socketPath: string;
+
+  constructor() {
+    super();
+    this.socketPath = getSocketPath();
+  }
+
+  getSocketPath(): string {
+    return this.socketPath;
+  }
 
   getDefaultShell(): string {
     if (process.platform === 'win32') {
@@ -17,15 +30,36 @@ class PtyManager extends EventEmitter {
     return process.env.SHELL || '/bin/bash';
   }
 
-  createSession(id: string, cwd: string): void {
-    const shell = this.getDefaultShell();
+  createSession(id: string, cwd: string, launchClaude: boolean = false): void {
+    // Validate cwd exists
+    if (!fs.existsSync(cwd)) {
+      console.error(`Working directory does not exist: ${cwd}`);
+      throw new Error(`Working directory does not exist: ${cwd}`);
+    }
 
-    const ptyProcess = pty.spawn(shell, [], {
+    let shell: string;
+    let args: string[] = [];
+    let env = process.env as { [key: string]: string };
+
+    if (launchClaude) {
+      const claudeConfig = getClaudeCommand({
+        sessionId: id,
+        projectDir: cwd,
+        socketPath: this.socketPath,
+      });
+      shell = claudeConfig.command;
+      args = claudeConfig.args;
+      env = claudeConfig.env as { [key: string]: string };
+    } else {
+      shell = this.getDefaultShell();
+    }
+
+    const ptyProcess = pty.spawn(shell, args, {
       name: 'xterm-256color',
       cols: 80,
       rows: 24,
       cwd: cwd,
-      env: process.env as { [key: string]: string },
+      env: env,
     });
 
     ptyProcess.onData((data) => {
@@ -37,7 +71,7 @@ class PtyManager extends EventEmitter {
       this.sessions.delete(id);
     });
 
-    this.sessions.set(id, { id, pty: ptyProcess, cwd });
+    this.sessions.set(id, { id, pty: ptyProcess, cwd, isClaudeSession: launchClaude });
   }
 
   write(id: string, data: string): void {
