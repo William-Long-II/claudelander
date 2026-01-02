@@ -2,32 +2,33 @@ import * as pty from 'node-pty';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
 import { getClaudeCommand, getSocketPath } from './claude-launcher';
+import { detectShell, ShellInfo } from './shell-detector';
 
 interface PtySession {
   id: string;
   pty: pty.IPty;
   cwd: string;
   isClaudeSession: boolean;
+  shellInfo: ShellInfo;
 }
 
 class PtyManager extends EventEmitter {
   private sessions: Map<string, PtySession> = new Map();
   private socketPath: string;
+  private defaultShellInfo: ShellInfo;
 
   constructor() {
     super();
     this.socketPath = getSocketPath();
+    this.defaultShellInfo = detectShell();
   }
 
   getSocketPath(): string {
     return this.socketPath;
   }
 
-  getDefaultShell(): string {
-    if (process.platform === 'win32') {
-      return process.env.COMSPEC || 'cmd.exe';
-    }
-    return process.env.SHELL || '/bin/bash';
+  getDefaultShellInfo(): ShellInfo {
+    return this.defaultShellInfo;
   }
 
   createSession(id: string, cwd: string, launchClaude: boolean = false): void {
@@ -40,6 +41,7 @@ class PtyManager extends EventEmitter {
     let shell: string;
     let args: string[] = [];
     let env = process.env as { [key: string]: string };
+    const shellInfo = this.defaultShellInfo;
 
     if (launchClaude) {
       const claudeConfig = getClaudeCommand({
@@ -47,18 +49,27 @@ class PtyManager extends EventEmitter {
         projectDir: cwd,
         socketPath: this.socketPath,
       });
-      shell = claudeConfig.command;
-      args = claudeConfig.args;
-      env = claudeConfig.env as { [key: string]: string };
+
+      if (shellInfo.isWSL) {
+        // Launch Claude inside WSL
+        shell = 'wsl.exe';
+        args = [...shellInfo.args, '--', 'claude'];
+        env = { ...env, ...claudeConfig.env } as { [key: string]: string };
+      } else {
+        shell = claudeConfig.command;
+        args = claudeConfig.args;
+        env = claudeConfig.env as { [key: string]: string };
+      }
     } else {
-      shell = this.getDefaultShell();
+      shell = shellInfo.shell;
+      args = shellInfo.args;
     }
 
     const ptyProcess = pty.spawn(shell, args, {
       name: 'xterm-256color',
       cols: 80,
       rows: 24,
-      cwd: cwd,
+      cwd: shellInfo.isWSL && !launchClaude ? undefined : cwd,
       env: env,
     });
 
@@ -71,7 +82,7 @@ class PtyManager extends EventEmitter {
       this.sessions.delete(id);
     });
 
-    this.sessions.set(id, { id, pty: ptyProcess, cwd, isClaudeSession: launchClaude });
+    this.sessions.set(id, { id, pty: ptyProcess, cwd, isClaudeSession: launchClaude, shellInfo });
   }
 
   write(id: string, data: string): void {
