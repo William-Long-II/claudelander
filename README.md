@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="docs/assets/highlander-hero.png" alt="Highlander" width="400">
+<img src="docs/assets/highlander-hero.png" alt="Highlander" width="300">
 
 ### *"I am ClaudeLander, born in the silicon valleys of Anthropic..."*
 
