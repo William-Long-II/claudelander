@@ -1,5 +1,5 @@
 import { autoUpdater, UpdateInfo } from 'electron-updater';
-import { BrowserWindow, dialog, app } from 'electron';
+import { BrowserWindow, dialog, Notification } from 'electron';
 import * as log from 'electron-log';
 
 // Configure logging
@@ -11,6 +11,7 @@ autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
 let mainWindow: BrowserWindow | null = null;
+let isDownloading = false;
 
 export function initAutoUpdater(window: BrowserWindow): void {
   mainWindow = window;
@@ -48,7 +49,31 @@ autoUpdater.on('update-available', (info: UpdateInfo) => {
   }).then((result) => {
     if (result.response === 0) {
       // User clicked Download
-      autoUpdater.downloadUpdate();
+      isDownloading = true;
+      log.info('Starting update download...');
+
+      // Show downloading notification
+      if (Notification.isSupported()) {
+        new Notification({
+          title: 'Downloading Update',
+          body: 'ClaudeLander is downloading the update in the background...',
+        }).show();
+      }
+
+      autoUpdater.downloadUpdate().catch((err) => {
+        log.error('Download failed:', err);
+        isDownloading = false;
+        if (mainWindow) {
+          dialog.showMessageBox(mainWindow, {
+            type: 'error',
+            title: 'Download Failed',
+            message: 'Failed to download update',
+            detail: `Error: ${err.message}\n\nPlease try again later or download manually from GitHub.`,
+            buttons: ['OK'],
+          });
+        }
+      });
+
       mainWindow?.webContents.send('update:downloading');
     }
   });
@@ -68,6 +93,7 @@ autoUpdater.on('download-progress', (progress) => {
 // Update downloaded
 autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
   log.info('Update downloaded:', info.version);
+  isDownloading = false;
 
   if (!mainWindow) return;
 
@@ -89,5 +115,16 @@ autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
 // Error handling
 autoUpdater.on('error', (err) => {
   log.error('Auto-updater error:', err);
-  // Don't show error dialogs to user - updates failing silently is better UX
+  isDownloading = false;
+
+  // Show error if we were actively downloading
+  if (mainWindow) {
+    dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      title: 'Update Error',
+      message: 'Update failed',
+      detail: `${err.message}\n\nYou can download updates manually from:\nhttps://github.com/William-Long-II/claudelander/releases`,
+      buttons: ['OK'],
+    });
+  }
 });
