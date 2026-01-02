@@ -10,6 +10,11 @@ files:
   - dist/**/*
   - package.json
 
+# Include icon files for tray icon
+extraResources:
+  - from: build/icon.png
+    to: icon.png
+
 # Auto-update configuration
 publish:
   provider: github

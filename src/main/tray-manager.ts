@@ -7,8 +7,9 @@ interface WaitingSession {
   name: string;
 }
 
-// Simple 16x16 icon as base64 PNG (golden "C" on dark background)
-const FALLBACK_ICON_DATA = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAA3klEQVR4nGNgGAUDARjhEpJSMv8ZGBj+Q2k4H8xmZGT8L6+o/P/P79//v//4/f/Xr1//f/z89f/nr9//f/789f/Hj5//v3///f/b1x//v375/v/Ll+//P3/+9v/jp6//P3789v/D+8//v/z/8/8Lw38Ghv9ggwQFBP7LDQD5gB+o1B4Jz//Zs2b/H/6MifBg+P8F6oL/YNNArvgC9Mp/YAAE9v//A3bB8ACQqyBeBxqOcAGCjwnqAxgsNvz/AzbuPdgVnyG+gZn+B2IC3AD8oQB2AcIAJEWoPhqF9AEAuPJUfHsVtjgAAAAASUVORK5CYII=';
+// 32x32 icon as base64 PNG - golden "C" on dark circle, optimized for Windows tray
+// This is a simple, clean icon that renders well at small sizes
+const FALLBACK_ICON_DATA = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAA7AAAAOwBeShxvQAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAMHSURBVFiFtZdNaBNBFMd/s5tNUtummBQtRdGDB6GKFkEQwYMHEbyIeBDBk168eFJEPIgHwYMXLx70IogH8eTBgwgePHgQxEO9iF8IQqvRim3TNJvZ8bBJzWY32d2NfTA7s+/N/N/s7JuZFVJKfuTLXVehzQETpJTI4bExHnz8yoOPX3k5Z+DSBtI0yWYNpJTk8oXGAHKuAMDMz18YhkGhUGRqZpZsNsvfbJZZLyBtm5cTbS7gJeDnqS1rUBSVn1N/KJVKvJmcJZcvNAawAYDpWTJZg2y2wO9sNjCABQcA4NcfKBSLTExnG0/BogFYCMDfbJZ8oYjjOpQLBUqlMqVSiVKpTKlUZjFYLEZDw8SRIzhy+K9vk8MqiiJZW/CUylKuVCqUSiWKRR/XdWsVCgWKxRLFYomJhCAhAaSSEiklUko8rwwga/iYpklXV3+9SIlhUzwcx8XznJZmoCGA4bTrep4XFJRNuq5LfJRu16VTAPaKB2zEYg3U1dWhqip+Y1tLaRMAz/MwTVOKtgAcx2kkBMdxGgLM02ZfOCBh2wG0bYe27QMAC4iqgOu6FIslKhVRCwAEACT4rIFpmjWBWu2oe0+AtN1i6xY8/dGCBW+/ALRt+1eaQCgtOQC0bhcmQ8B1Q+1YCADK5Qp5v5BhGKiq0rS9bdu0bbsWwDQlKIoaG0BSu0ADbvMAwcxcrhB76wl82E0DKKqGbTdl9gBxSikaRnuZZjQKECbr9oi6oe8JdJrF5KaDkFJi23ZQFRs3HQitBi5T0aIBuOx0BLBTAIIIAJ2CxCaVtdVJiJvWwPM85udN5uct5uctz2ZnLdp1Pc9mYsIg/C7I8HwfwHRAqNfbdhpGdAmMwwnMGQB6hwBmqUKpXALgj2FSLJaYnMxhmCbFYomJiQLAL1BUKBl1GKYJJDBthvLVwJRj2xTNAvP5AvP5fMMAjgPm//3PYdaEqnQK4AJe3MJYu0Xf7KdpGqqmYtSNdRxU1SSfzzA6uh3gZFNJiSNr1O5nmoYZfMIoK/V+4n0AAAAASUVORK5CYII=';
 
 class TrayManager {
   private tray: Tray | null = null;
@@ -43,17 +44,48 @@ class TrayManager {
 
     for (const iconPath of iconPaths) {
       if (fs.existsSync(iconPath)) {
-        const icon = nativeImage.createFromPath(iconPath);
-        if (!icon.isEmpty()) {
-          console.log('Loaded tray icon from:', iconPath);
-          return icon;
+        try {
+          const icon = nativeImage.createFromPath(iconPath);
+          if (!icon.isEmpty()) {
+            console.log('Loaded tray icon from:', iconPath);
+            // Resize to appropriate tray icon size
+            return icon.resize({ width: 32, height: 32 });
+          }
+        } catch (err) {
+          console.error('Failed to load icon from:', iconPath, err);
         }
       }
     }
 
     // Fallback to embedded icon
     console.log('Using fallback tray icon');
-    return nativeImage.createFromDataURL(FALLBACK_ICON_DATA);
+    const fallbackIcon = nativeImage.createFromDataURL(FALLBACK_ICON_DATA);
+    if (fallbackIcon.isEmpty()) {
+      console.error('Fallback icon is empty, creating simple colored icon');
+      // Create a simple colored square as last resort
+      return this.createSimpleIcon();
+    }
+    return fallbackIcon;
+  }
+
+  private createSimpleIcon(): Electron.NativeImage {
+    // Create a simple 16x16 colored icon as absolute last resort
+    // This creates a solid colored square
+    const size = 16;
+    const buffer = Buffer.alloc(size * size * 4);
+
+    // Fill with golden color (RGBA)
+    for (let i = 0; i < size * size; i++) {
+      buffer[i * 4] = 212;     // R
+      buffer[i * 4 + 1] = 175; // G
+      buffer[i * 4 + 2] = 55;  // B
+      buffer[i * 4 + 3] = 255; // A
+    }
+
+    return nativeImage.createFromBuffer(buffer, {
+      width: size,
+      height: size,
+    });
   }
 
   private getIconPaths(): string[] {
