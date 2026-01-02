@@ -26,7 +26,7 @@ function detectWindowsShell(): ShellInfo {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
       return {
-        shell: 'wsl.exe',
+        shell: 'C:\\Windows\\System32\\wsl.exe',
         args: ['-d', distros[0]], // Use first available distro
         isWSL: true,
       };
@@ -35,20 +35,20 @@ function detectWindowsShell(): ShellInfo {
     }
   }
 
-  // Fallback to PowerShell or CMD
-  const powershell = process.env.COMSPEC?.includes('powershell')
-    || fs.existsSync('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe');
-
-  if (powershell) {
+  // Fallback to PowerShell (use full path for node-pty compatibility)
+  const powershellPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+  if (fs.existsSync(powershellPath)) {
     return {
-      shell: 'powershell.exe',
+      shell: powershellPath,
       args: ['-NoLogo'],
       isWSL: false,
     };
   }
 
+  // Last resort: CMD
+  const cmdPath = process.env.COMSPEC || 'C:\\Windows\\System32\\cmd.exe';
   return {
-    shell: process.env.COMSPEC || 'cmd.exe',
+    shell: cmdPath,
     args: [],
     isWSL: false,
   };
