@@ -31,7 +31,10 @@ class PtyManager extends EventEmitter {
   private getShellInfo(): ShellInfo {
     // Get custom shell path from preferences (re-read each time to pick up changes)
     const customShellPath = getPreference('customShellPath') || '';
-    return detectShell(customShellPath);
+    console.log('Custom shell path from preferences:', customShellPath || '(not set)');
+    const result = detectShell(customShellPath);
+    console.log('Detected shell:', result);
+    return result;
   }
 
   getSocketPath(): string {
@@ -56,6 +59,13 @@ class PtyManager extends EventEmitter {
 
     console.log('Creating session with shell:', shellInfo.shell, 'args:', shellInfo.args, 'isWSL:', shellInfo.isWSL);
 
+    // Validate shell exists
+    if (!shellInfo.shell || !fs.existsSync(shellInfo.shell)) {
+      const errorMsg = `Shell not found: ${shellInfo.shell || '(empty)'}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
     if (launchClaude) {
       const claudeConfig = getClaudeCommand({
         sessionId: id,
@@ -67,6 +77,19 @@ class PtyManager extends EventEmitter {
         // Launch Claude inside WSL
         shell = 'wsl.exe';
         args = [...shellInfo.args, '--', 'claude'];
+        env = { ...env, ...claudeConfig.env } as { [key: string]: string };
+      } else if (process.platform === 'win32') {
+        // On Windows without WSL, run Claude through the shell
+        // node-pty needs full paths, so use shell to resolve PATH
+        shell = shellInfo.shell;
+        if (shellInfo.shell.toLowerCase().includes('powershell')) {
+          args = ['-NoLogo', '-Command', 'claude'];
+        } else if (shellInfo.shell.toLowerCase().includes('cmd')) {
+          args = ['/c', 'claude'];
+        } else {
+          // Assume bash-like shell (Git Bash, etc.)
+          args = ['-c', 'claude'];
+        }
         env = { ...env, ...claudeConfig.env } as { [key: string]: string };
       } else {
         shell = claudeConfig.command;
