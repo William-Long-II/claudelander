@@ -151,5 +151,12 @@
 
     <button class="close-btn" onclick="window.close()">OK</button>
   </div>
+
+  <script>
+    // Get version from URL query parameter
+    const params = new URLSearchParams(window.location.search);
+    const version = params.get('version') || '1.0.0';
+    document.getElementById('version').textContent = `Version ${version}`;
+  </script>
 </body>
 </html>

@@ -60,7 +60,10 @@ function showAboutWindow(parentWindow: BrowserWindow): void {
     },
   });
 
-  aboutWindow.loadFile(path.join(__dirname, '../renderer/about.html'));
+  const version = app.getVersion();
+  aboutWindow.loadFile(path.join(__dirname, '../renderer/about.html'), {
+    query: { version },
+  });
 
   aboutWindow.on('closed', () => {
     aboutWindow = null;
