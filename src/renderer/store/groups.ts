@@ -22,31 +22,34 @@ export function useGroups() {
     loadGroups();
   }, []);
 
-  const createGroup = useCallback(async (name: string): Promise<Group> => {
+  const createGroup = useCallback(async (name: string, parentId?: string): Promise<Group> => {
     return new Promise((resolve, reject) => {
       setGroups(prev => {
+        const parentGroup = parentId ? prev.find(g => g.id === parentId) : null;
+        const order = parentId
+          ? prev.filter(g => g.parentId === parentId).length
+          : prev.filter(g => !g.parentId).length;
+
         const group: Group = {
           id: crypto.randomUUID(),
           name,
-          color: DEFAULT_COLORS[prev.length % DEFAULT_COLORS.length],
-          workingDir: '',
-          order: prev.length,
+          color: parentGroup?.color || DEFAULT_COLORS[prev.filter(g => !g.parentId).length % DEFAULT_COLORS.length],
+          workingDir: parentGroup?.workingDir || '',
+          order,
           createdAt: new Date(),
-          parentId: null,
+          parentId: parentId || null,
           collapsed: false,
         };
 
-        // Persist asynchronously
         window.electronAPI.createGroup(group)
           .then(() => resolve(group))
           .catch((error) => {
             console.error('Failed to create group:', error);
-            // Rollback by removing the group
             setGroups(current => current.filter(g => g.id !== group.id));
             reject(error);
           });
 
-        return [...prev, group]; // Optimistic update
+        return [...prev, group];
       });
     });
   }, []);
@@ -100,6 +103,45 @@ export function useGroups() {
     });
   }, []);
 
+  const toggleCollapse = useCallback(async (groupId: string) => {
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return;
+
+    const newCollapsed = !group.collapsed;
+    setGroups(prev => prev.map(g =>
+      g.id === groupId ? { ...g, collapsed: newCollapsed } : g
+    ));
+
+    try {
+      await window.electronAPI.updateGroup(groupId, { collapsed: newCollapsed });
+    } catch (error) {
+      console.error('Failed to toggle collapse:', error);
+      // Rollback
+      setGroups(prev => prev.map(g =>
+        g.id === groupId ? { ...g, collapsed: !newCollapsed } : g
+      ));
+    }
+  }, [groups]);
+
+  const getTopLevelGroups = useCallback(() => {
+    return groups.filter(g => !g.parentId).sort((a, b) => a.order - b.order);
+  }, [groups]);
+
+  const getSubGroups = useCallback((parentId: string) => {
+    return groups.filter(g => g.parentId === parentId).sort((a, b) => a.order - b.order);
+  }, [groups]);
+
+  const getEffectiveWorkingDir = useCallback((groupId: string): string => {
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return '';
+    if (group.workingDir) return group.workingDir;
+    if (group.parentId) {
+      const parent = groups.find(g => g.id === group.parentId);
+      return parent?.workingDir || '';
+    }
+    return '';
+  }, [groups]);
+
   return {
     groups,
     loading,
@@ -107,5 +149,9 @@ export function useGroups() {
     updateGroup,
     removeGroup,
     reorderGroup,
+    toggleCollapse,
+    getTopLevelGroups,
+    getSubGroups,
+    getEffectiveWorkingDir,
   };
 }
