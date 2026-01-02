@@ -12,6 +12,11 @@ import { notificationManager } from './notification-manager';
 import { trayManager } from './tray-manager';
 import { Group, Session } from '../shared/types';
 
+// Set app name for Windows notifications
+if (process.platform === 'win32') {
+  app.setAppUserModelId('ClaudeLander');
+}
+
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 let stateMonitor: StateMonitor | null = null;
@@ -31,9 +36,23 @@ function updateTrayWithWaitingSessions(): void {
 }
 
 function handleStateChange(sessionId: string, state: string, sessionName?: string): void {
-  // Update our tracking map
-  const existing = sessionStates.get(sessionId);
-  const name = sessionName || existing?.name || sessionId;
+  // Look up session name from database if not provided
+  let name = sessionName;
+  if (!name) {
+    const existing = sessionStates.get(sessionId);
+    if (existing?.name && existing.name !== sessionId) {
+      name = existing.name;
+    } else {
+      // Look up from database
+      try {
+        const sessions = sessionsRepo.getAllSessions();
+        const session = sessions.find(s => s.id === sessionId);
+        name = session?.name || `Session`;
+      } catch {
+        name = 'Session';
+      }
+    }
+  }
 
   if (state === 'waiting') {
     sessionStates.set(sessionId, { name, state });
@@ -46,6 +65,7 @@ function handleStateChange(sessionId: string, state: string, sessionName?: strin
     });
   } else {
     // Update state but keep name
+    const existing = sessionStates.get(sessionId);
     if (existing) {
       sessionStates.set(sessionId, { ...existing, state });
     } else {
