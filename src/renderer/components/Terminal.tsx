@@ -143,24 +143,39 @@ const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd, launchClaude = true
       window.electronAPI.writeToSession(sessionId, data);
     });
 
-    // Handle resize
+    // Handle resize with ResizeObserver for reliable sizing
     const handleResize = () => {
-      fitAddon.fit();
-      const { cols, rows } = term;
-      window.electronAPI.resizeSession(sessionId, cols, rows);
+      if (fitAddonRef.current && xtermRef.current) {
+        fitAddonRef.current.fit();
+        const { cols, rows } = xtermRef.current;
+        window.electronAPI.resizeSession(sessionId, cols, rows);
+      }
     };
+
+    // Use ResizeObserver to detect when container actually has dimensions
+    const resizeObserver = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      if (width > 0 && height > 0) {
+        requestAnimationFrame(() => {
+          handleResize();
+        });
+      }
+    });
+
+    if (terminalRef.current) {
+      resizeObserver.observe(terminalRef.current);
+    }
 
     window.addEventListener('resize', handleResize);
 
-    // Initial resize
-    setTimeout(() => {
-      fitAddon.fit();
-      const { cols, rows } = term;
-      window.electronAPI.resizeSession(sessionId, cols, rows);
-    }, 100);
+    // Initial fit after layout settles
+    requestAnimationFrame(() => {
+      setTimeout(() => handleResize(), 50);
+    });
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
       cleanupPtyData();
       window.electronAPI.killSession(sessionId);
       term.dispose();

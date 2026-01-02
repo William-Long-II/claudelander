@@ -496,7 +496,7 @@ const App: React.FC = () => {
             <div
               key={session.id}
               className="terminal-wrapper"
-              style={{ display: session.id === activeSessionId ? 'block' : 'none' }}
+              style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
             >
               <Terminal
                 sessionId={session.id}
