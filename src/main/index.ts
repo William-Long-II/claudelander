@@ -224,6 +224,28 @@ ipcMain.handle('db:sessions:delete', async (_, id: string) => {
   sessionsRepo.deleteSession(id);
 });
 
+// Preferences IPC Handlers
+ipcMain.handle('prefs:get', async (_, key: string) => {
+  return prefsRepo.getPreference(key);
+});
+
+ipcMain.handle('prefs:set', async (_, key: string, value: string) => {
+  prefsRepo.setPreference(key, value);
+});
+
+ipcMain.handle('prefs:getAll', async () => {
+  // Return all app settings as an object
+  const settings = {
+    autoLaunchClaude: prefsRepo.getPreference('autoLaunchClaude') ?? 'true',
+    customShellPath: prefsRepo.getPreference('customShellPath') ?? '',
+    showSplash: prefsRepo.getPreference('showSplash') ?? 'true',
+    splashDuration: prefsRepo.getPreference('splashDuration') ?? '2.5',
+    fontSize: prefsRepo.getPreference('fontSize') ?? '14',
+    webglRenderer: prefsRepo.getPreference('webglRenderer') ?? 'true',
+  };
+  return settings;
+});
+
 app.whenReady().then(() => {
   createSplashWindow();
   createWindow();

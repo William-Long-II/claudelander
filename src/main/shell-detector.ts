@@ -7,7 +7,22 @@ export interface ShellInfo {
   isWSL: boolean;
 }
 
-export function detectShell(): ShellInfo {
+export function detectShell(customShellPath?: string): ShellInfo {
+  // If custom shell path is provided and exists, use it
+  if (customShellPath && customShellPath.trim()) {
+    const trimmedPath = customShellPath.trim();
+    if (fs.existsSync(trimmedPath)) {
+      // Determine if it's WSL
+      const isWSL = trimmedPath.toLowerCase().includes('wsl');
+      return {
+        shell: trimmedPath,
+        args: isWSL ? [] : (trimmedPath.toLowerCase().includes('powershell') ? ['-NoLogo'] : []),
+        isWSL,
+      };
+    }
+    console.warn(`Custom shell path not found: ${trimmedPath}, falling back to auto-detect`);
+  }
+
   if (process.platform === 'win32') {
     return detectWindowsShell();
   }

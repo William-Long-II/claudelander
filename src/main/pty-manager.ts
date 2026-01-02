@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import { EventEmitter } from 'events';
 import { getClaudeCommand, getSocketPath } from './claude-launcher';
 import { detectShell, ShellInfo } from './shell-detector';
+import { getPreference } from './repositories/preferences';
 
 interface PtySession {
   id: string;
@@ -21,12 +22,16 @@ interface PtySession {
 class PtyManager extends EventEmitter {
   private sessions: Map<string, PtySession> = new Map();
   private socketPath: string;
-  private defaultShellInfo: ShellInfo;
 
   constructor() {
     super();
     this.socketPath = getSocketPath();
-    this.defaultShellInfo = detectShell();
+  }
+
+  private getShellInfo(): ShellInfo {
+    // Get custom shell path from preferences (re-read each time to pick up changes)
+    const customShellPath = getPreference('customShellPath') || '';
+    return detectShell(customShellPath);
   }
 
   getSocketPath(): string {
@@ -34,7 +39,7 @@ class PtyManager extends EventEmitter {
   }
 
   getDefaultShellInfo(): ShellInfo {
-    return this.defaultShellInfo;
+    return this.getShellInfo();
   }
 
   createSession(id: string, cwd: string, launchClaude: boolean = false): void {
@@ -47,7 +52,9 @@ class PtyManager extends EventEmitter {
     let shell: string;
     let args: string[] = [];
     let env = process.env as { [key: string]: string };
-    const shellInfo = this.defaultShellInfo;
+    const shellInfo = this.getShellInfo();
+
+    console.log('Creating session with shell:', shellInfo.shell, 'args:', shellInfo.args, 'isWSL:', shellInfo.isWSL);
 
     if (launchClaude) {
       const claudeConfig = getClaudeCommand({
