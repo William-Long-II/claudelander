@@ -94,8 +94,7 @@ jobs:
             release/*.exe
             release/*.dmg
             release/*.zip
-            release/*.yml
-            release/*.yaml
+            release/latest*.yml
           if-no-files-found: ignore
 
   # Create release and upload all artifacts
@@ -131,7 +130,6 @@ jobs:
             artifacts/**/*.exe
             artifacts/**/*.dmg
             artifacts/**/*.zip
-            artifacts/**/*.yml
-            artifacts/**/*.yaml
+            artifacts/**/latest*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
