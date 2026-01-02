@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
@@ -13,12 +13,67 @@ interface TerminalProps {
   onError?: (error: string) => void;
 }
 
+interface ContextMenuState {
+  visible: boolean;
+  x: number;
+  y: number;
+  hasSelection: boolean;
+}
+
 const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd, launchClaude = true, isStopped = false, onStart, onError }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const [isRunning, setIsRunning] = React.useState(!isStopped);
-  const [error, setError] = React.useState<string | null>(null);
+  const [isRunning, setIsRunning] = useState(!isStopped);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, hasSelection: false });
+  const [error, setError] = useState<string | null>(null);
+
+  // Copy text from terminal selection
+  const handleCopy = useCallback(() => {
+    const term = xtermRef.current;
+    if (term) {
+      const selection = term.getSelection();
+      if (selection) {
+        navigator.clipboard.writeText(selection);
+      }
+    }
+    setContextMenu(prev => ({ ...prev, visible: false }));
+  }, []);
+
+  // Paste text into terminal
+  const handlePaste = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        window.electronAPI.writeToSession(sessionId, text);
+      }
+    } catch (err) {
+      console.error('Failed to paste:', err);
+    }
+    setContextMenu(prev => ({ ...prev, visible: false }));
+  }, [sessionId]);
+
+  // Handle right-click context menu
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const term = xtermRef.current;
+    const hasSelection = term ? term.getSelection().length > 0 : false;
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      hasSelection,
+    });
+  }, []);
+
+  // Close context menu when clicking elsewhere
+  useEffect(() => {
+    const handleClick = () => setContextMenu(prev => ({ ...prev, visible: false }));
+    if (contextMenu.visible) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [contextMenu.visible]);
 
   useEffect(() => {
     if (!terminalRef.current || !isRunning) return;
@@ -59,6 +114,28 @@ const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd, launchClaude = true
       if (id === sessionId) {
         term.write(data);
       }
+    });
+
+    // Handle keyboard shortcuts for copy/paste
+    term.attachCustomKeyEventHandler((event) => {
+      // Ctrl+Shift+C = Copy
+      if (event.ctrlKey && event.shiftKey && event.key === 'C') {
+        const selection = term.getSelection();
+        if (selection) {
+          navigator.clipboard.writeText(selection);
+        }
+        return false; // Prevent default
+      }
+      // Ctrl+Shift+V = Paste
+      if (event.ctrlKey && event.shiftKey && event.key === 'V') {
+        navigator.clipboard.readText().then(text => {
+          if (text) {
+            window.electronAPI.writeToSession(sessionId, text);
+          }
+        });
+        return false; // Prevent default
+      }
+      return true; // Allow other keys through
     });
 
     // Handle user input
@@ -128,7 +205,38 @@ const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd, launchClaude = true
     );
   }
 
-  return <div ref={terminalRef} className="terminal-container" />;
+  return (
+    <>
+      <div
+        ref={terminalRef}
+        className="terminal-container"
+        onContextMenu={handleContextMenu}
+      />
+      {contextMenu.visible && (
+        <div
+          className="terminal-context-menu"
+          style={{
+            position: 'fixed',
+            left: contextMenu.x,
+            top: contextMenu.y,
+          }}
+        >
+          <button
+            onClick={handleCopy}
+            disabled={!contextMenu.hasSelection}
+            className={!contextMenu.hasSelection ? 'disabled' : ''}
+          >
+            Copy
+            <span className="shortcut">Ctrl+Shift+C</span>
+          </button>
+          <button onClick={handlePaste}>
+            Paste
+            <span className="shortcut">Ctrl+Shift+V</span>
+          </button>
+        </div>
+      )}
+    </>
+  );
 };
 
 export default Terminal;

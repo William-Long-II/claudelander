@@ -100,3 +100,47 @@
 .terminal-error button:hover {
   background: #1177bb;
 }
+
+/* Terminal context menu */
+.terminal-context-menu {
+  background: #2d2d2d;
+  border: 1px solid #454545;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  padding: 4px 0;
+  min-width: 160px;
+  z-index: 1000;
+}
+
+.terminal-context-menu button {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #d4d4d4;
+  font-size: 13px;
+  padding: 8px 16px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.terminal-context-menu button:hover {
+  background: #094771;
+}
+
+.terminal-context-menu button.disabled {
+  color: #666;
+  cursor: default;
+}
+
+.terminal-context-menu button.disabled:hover {
+  background: transparent;
+}
+
+.terminal-context-menu .shortcut {
+  font-size: 11px;
+  color: #888;
+  margin-left: 24px;
+}
