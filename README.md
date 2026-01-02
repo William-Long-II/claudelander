@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Highlander](docs/assets/highlander-hero.png)
+<img src="docs/assets/highlander-hero.png" alt="Highlander" width="400">
 
 ### *"I am ClaudeLander, born in the silicon valleys of Anthropic..."*
 
