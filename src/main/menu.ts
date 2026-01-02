@@ -171,13 +171,13 @@ export function createApplicationMenu(mainWindow: BrowserWindow): void {
         {
           label: 'Documentation',
           click: async () => {
-            await shell.openExternal('https://github.com/anthropics/claude-code');
+            await shell.openExternal('https://github.com/William-Long-II/claudelander');
           },
         },
         {
           label: 'Report Issue',
           click: async () => {
-            await shell.openExternal('https://github.com/anthropics/claude-code/issues');
+            await shell.openExternal('https://github.com/William-Long-II/claudelander/issues');
           },
         },
       ],

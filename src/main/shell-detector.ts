@@ -18,11 +18,21 @@ function detectWindowsShell(): ShellInfo {
   // Check for WSL with available distros
   const distros = getWSLDistros();
   if (distros.length > 0) {
-    return {
-      shell: 'wsl.exe',
-      args: ['-d', distros[0]], // Use first available distro
-      isWSL: true,
-    };
+    // Verify the distro actually works
+    try {
+      execSync(`wsl.exe -d "${distros[0]}" echo ok`, {
+        encoding: 'utf-8',
+        timeout: 5000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      return {
+        shell: 'wsl.exe',
+        args: ['-d', distros[0]], // Use first available distro
+        isWSL: true,
+      };
+    } catch {
+      // WSL distro doesn't work, fall through to PowerShell
+    }
   }
 
   // Fallback to PowerShell or CMD
@@ -55,8 +65,25 @@ function detectUnixShell(): ShellInfo {
 
 export function getWSLDistros(): string[] {
   try {
-    const output = execSync('wsl.exe --list --quiet', { encoding: 'utf-8' });
-    return output.split('\n').map(s => s.trim()).filter(Boolean);
+    // WSL outputs UTF-16LE with BOM, need to handle encoding properly
+    const output = execSync('wsl.exe --list --quiet', {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'], // Capture stderr too
+      timeout: 5000, // 5 second timeout
+    });
+
+    // Remove null bytes and BOM characters that WSL adds
+    const cleaned = output
+      .replace(/\0/g, '') // Remove null bytes from UTF-16
+      .replace(/^\uFEFF/, '') // Remove BOM
+      .replace(/\r/g, ''); // Normalize line endings
+
+    const distros = cleaned
+      .split('\n')
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !s.includes('Windows Subsystem'));
+
+    return distros;
   } catch {
     return [];
   }
