@@ -243,12 +243,17 @@ class PtyManager extends EventEmitter {
       /\[Y\/n\]/i,                        // Yes/no prompt
       /Press Enter/i,                     // Press enter prompt
       /Enter to confirm/i,               // Claude confirmation prompt
+      /Enter to select/i,                // Claude Code selection menu prompt
+      /Tab\/Arrow keys to navigate/i,    // Claude Code selection menu
+      /Esc to cancel/i,                  // Claude Code selection menu
       /Do you want to/i,                  // Permission prompts
       /Do you trust/i,                    // Trust folder prompt
       /Would you like/i,                  // Permission prompts
       /Allow.*Deny/s,                     // Claude permission dialog
       /Yes,\s*proceed/i,                  // Yes/No options
       /\d+\.\s*Yes/i,                     // Numbered Yes option
+      /Type something/i,                  // Claude Code "Type something" option
+      />\s*\d+\./,                        // Selected numbered option (> 1.)
     ];
 
     let isWaiting = false;
