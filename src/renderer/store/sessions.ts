@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import { Session, SessionState } from '../../shared/types';
 
 export function useSessions() {
@@ -23,6 +22,13 @@ export function useSessions() {
 
     // Listen for state changes from hooks
     const cleanupStateChange = window.electronAPI.onStateChange((event) => {
+      // Validate state is a valid SessionState
+      const validStates: SessionState[] = ['idle', 'working', 'waiting', 'error', 'stopped'];
+      if (!validStates.includes(event.state as SessionState)) {
+        console.error('Invalid session state received:', event.state);
+        return;
+      }
+
       setSessions(prev => prev.map(s =>
         s.id === event.sessionId
           ? { ...s, state: event.state as SessionState, lastActivityAt: new Date(event.timestamp * 1000) }
@@ -44,7 +50,7 @@ export function useSessions() {
     return new Promise((resolve, reject) => {
       setSessions(prev => {
         const session: Session = {
-          id: uuidv4(),
+          id: crypto.randomUUID(),
           groupId,
           name,
           workingDir,
@@ -88,6 +94,17 @@ export function useSessions() {
     }
   }, []);
 
+  const updateSession = useCallback(async (id: string, updates: Partial<Session>) => {
+    try {
+      await window.electronAPI.updateDbSession(id, updates);
+      setSessions(prev => prev.map(s =>
+        s.id === id ? { ...s, ...updates } : s
+      ));
+    } catch (error) {
+      console.error('Failed to update session:', error);
+    }
+  }, []);
+
   const removeSession = useCallback(async (id: string) => {
     try {
       await window.electronAPI.deleteDbSession(id);
@@ -111,8 +128,42 @@ export function useSessions() {
       working: sessions.filter(s => s.state === 'working').length,
       idle: sessions.filter(s => s.state === 'idle').length,
       error: sessions.filter(s => s.state === 'error').length,
+      stopped: sessions.filter(s => s.state === 'stopped').length,
     };
   }, [sessions]);
+
+  const reorderSession = useCallback(async (sessionId: string, targetGroupId: string, newOrder: number) => {
+    setSessions(prev => {
+      const session = prev.find(s => s.id === sessionId);
+      if (!session) return prev;
+
+      // Get sessions in target group, excluding the moved session
+      const targetGroupSessions = prev
+        .filter(s => s.groupId === targetGroupId && s.id !== sessionId)
+        .sort((a, b) => a.order - b.order);
+
+      // Insert at new position
+      targetGroupSessions.splice(newOrder, 0, { ...session, groupId: targetGroupId });
+
+      // Update orders for all sessions in target group
+      const updatedTargetSessions = targetGroupSessions.map((s, idx) => ({
+        ...s,
+        order: idx,
+      }));
+
+      // Keep sessions from other groups, and replace target group sessions
+      const otherSessions = prev.filter(s => s.groupId !== targetGroupId && s.id !== sessionId);
+      const newSessions = [...otherSessions, ...updatedTargetSessions];
+
+      // Persist changes
+      updatedTargetSessions.forEach(s => {
+        window.electronAPI.updateDbSession(s.id, { groupId: s.groupId, order: s.order })
+          .catch(err => console.error('Failed to update session order:', err));
+      });
+
+      return newSessions;
+    });
+  }, []);
 
   return {
     sessions,
@@ -120,9 +171,11 @@ export function useSessions() {
     activeSessionId,
     setActiveSessionId,
     createSession,
+    updateSession,
     updateSessionState,
     removeSession,
     getSessionsByGroup,
     getStateCounts,
+    reorderSession,
   };
 }

@@ -72,3 +72,13 @@ export function deleteSession(id: string): void {
   const db = getDatabase();
   db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
 }
+
+export function clearAllSessions(): void {
+  const db = getDatabase();
+  db.prepare('DELETE FROM sessions').run();
+}
+
+export function markAllSessionsStopped(): void {
+  const db = getDatabase();
+  db.prepare("UPDATE sessions SET state = 'stopped'").run();
+}

@@ -1,4 +1,4 @@
-export type SessionState = 'idle' | 'working' | 'waiting' | 'error';
+export type SessionState = 'idle' | 'working' | 'waiting' | 'error' | 'stopped';
 
 export interface Session {
   id: string;
@@ -16,6 +16,7 @@ export interface Group {
   id: string;
   name: string;
   color: string;
+  workingDir: string;
   order: number;
   createdAt: Date;
 }

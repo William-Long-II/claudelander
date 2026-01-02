@@ -18,6 +18,16 @@ export interface ElectronAPI {
   onPtyExit: (callback: (id: string, exitCode: number) => void) => () => void;
   onStateChange: (callback: (event: StateChangeEvent) => void) => () => void;
 
+  // Menu events
+  onMenuNewSession: (callback: () => void) => () => void;
+  onMenuCloseSession: (callback: () => void) => () => void;
+  onMenuNextSession: (callback: () => void) => () => void;
+  onMenuPrevSession: (callback: () => void) => () => void;
+  onMenuNextWaiting: (callback: () => void) => () => void;
+
+  // Dialogs
+  selectDirectory: () => Promise<string | null>;
+
   // Database - Groups
   getAllGroups: () => Promise<Group[]>;
   createGroup: (group: Group) => Promise<void>;

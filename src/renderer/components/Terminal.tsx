@@ -8,15 +8,20 @@ interface TerminalProps {
   sessionId: string;
   cwd: string;
   launchClaude?: boolean;
+  isStopped?: boolean;
+  onStart?: () => void;
+  onError?: (error: string) => void;
 }
 
-const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd, launchClaude = true }) => {
+const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd, launchClaude = true, isStopped = false, onStart, onError }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const [isRunning, setIsRunning] = React.useState(!isStopped);
+  const [error, setError] = React.useState<string | null>(null);
 
   useEffect(() => {
-    if (!terminalRef.current) return;
+    if (!terminalRef.current || !isRunning) return;
 
     const term = new XTerm({
       theme: {
@@ -40,8 +45,14 @@ const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd, launchClaude = true
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // Create PTY session
-    window.electronAPI.createSession(sessionId, cwd, launchClaude);
+    // Create PTY session with error handling
+    window.electronAPI.createSession(sessionId, cwd, launchClaude)
+      .catch((err) => {
+        const errorMsg = err?.message || 'Failed to start session';
+        console.error('Failed to create PTY session:', err);
+        setError(errorMsg);
+        onError?.(errorMsg);
+      });
 
     // Handle PTY data
     const cleanupPtyData = window.electronAPI.onPtyData((id, data) => {
@@ -77,7 +88,45 @@ const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd, launchClaude = true
       window.electronAPI.killSession(sessionId);
       term.dispose();
     };
-  }, [sessionId, cwd, launchClaude]);
+  }, [sessionId, cwd, launchClaude, isRunning]);
+
+  const handleStart = () => {
+    setError(null);
+    setIsRunning(true);
+    onStart?.();
+  };
+
+  const handleRetry = () => {
+    setError(null);
+    setIsRunning(false);
+    // Small delay then restart
+    setTimeout(() => {
+      setIsRunning(true);
+      onStart?.();
+    }, 100);
+  };
+
+  if (error) {
+    return (
+      <div className="terminal-error">
+        <div className="error-icon">!</div>
+        <p className="error-title">Session Error</p>
+        <p className="error-message">{error}</p>
+        <div className="error-actions">
+          <button onClick={handleRetry}>Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isRunning) {
+    return (
+      <div className="terminal-stopped">
+        <p>Session stopped</p>
+        <button onClick={handleStart}>Start Session</button>
+      </div>
+    );
+  }
 
   return <div ref={terminalRef} className="terminal-container" />;
 };

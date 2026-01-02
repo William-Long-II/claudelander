@@ -39,45 +39,31 @@ body {
   flex-direction: column;
 }
 
-.tabs {
-  height: 35px;
-  background: #2d2d2d;
-  border-bottom: 1px solid #3c3c3c;
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-}
-
 .terminal-area {
   flex: 1;
   background: #1e1e1e;
+  position: relative;
+}
+
+.terminal-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 .status-bar {
   grid-column: 1 / 3;
-  background: #007acc;
+  background: #1e1e1e;
+  border-top: 1px solid #3c3c3c;
   display: flex;
   align-items: center;
   padding: 0 12px;
   font-size: 12px;
+  color: #888;
 }
 
-.tab {
-  padding: 6px 16px;
-  background: #2d2d2d;
-  border: 1px solid #3c3c3c;
-  border-bottom: none;
-  border-radius: 4px 4px 0 0;
-  margin-right: 4px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.tab.active {
-  background: #1e1e1e;
-  border-bottom: 1px solid #1e1e1e;
-  margin-bottom: -1px;
-}
 
 /* Sidebar */
 .sidebar-header {
@@ -122,18 +108,124 @@ body {
   align-items: center;
   gap: 8px;
   padding: 4px 0;
+  position: relative;
 }
 
 .group-color {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.1s;
+}
+
+.group-color:hover {
+  transform: scale(1.3);
+}
+
+.color-picker {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: #2d2d2d;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.color-option {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s, border-color 0.1s;
+}
+
+.color-option:hover {
+  transform: scale(1.2);
+}
+
+.color-option.selected {
+  border-color: #fff;
 }
 
 .group-name {
   flex: 1;
   font-size: 13px;
   font-weight: 500;
+  cursor: pointer;
+}
+
+.group-name:hover {
+  text-decoration: underline;
+}
+
+.group-name-input {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  background: #3c3c3c;
+  border: 1px solid #007acc;
+  color: #d4d4d4;
+  padding: 2px 4px;
+  border-radius: 2px;
+  outline: none;
+}
+
+.group-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.group-header:hover .group-actions {
+  opacity: 1;
+}
+
+.group-delete {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+}
+
+.group-delete:hover {
+  color: #e06c75;
+}
+
+.group-delete:disabled {
+  color: #555;
+  cursor: not-allowed;
+}
+
+.group-folder {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+}
+
+.group-folder:hover {
+  color: #61afef;
+}
+
+.group-dir-indicator {
+  font-size: 10px;
+  margin-left: 4px;
+  opacity: 0.7;
 }
 
 .group-sessions {
@@ -159,52 +251,91 @@ body {
   background: #094771;
 }
 
-.state-indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #888;
+.session-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.state-indicator.waiting { background: #e5c07b; }
-.state-indicator.working { background: #61afef; }
-.state-indicator.idle { background: #5a5a5a; }
-.state-indicator.error { background: #e06c75; }
-
-/* Tabs */
-.tab {
-  position: relative;
-  padding: 6px 32px 6px 16px;
+.session-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.tab-close {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+.session-dir {
+  font-size: 10px;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-name-input {
+  flex: 1;
+  font-size: 13px;
+  background: #3c3c3c;
+  border: 1px solid #007acc;
+  color: #d4d4d4;
+  padding: 2px 4px;
+  border-radius: 2px;
+  outline: none;
+}
+
+.status-pill {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.status-pill.idle {
+  background: #3c3c3c;
+  color: #888;
+}
+
+.status-pill.working {
+  background: #264f78;
+  color: #61afef;
+}
+
+.status-pill.waiting {
+  background: #4d4226;
+  color: #e5c07b;
+}
+
+.status-pill.error {
+  background: #4d2626;
+  color: #e06c75;
+}
+
+.status-pill.stopped {
+  background: #2d2d2d;
+  color: #666;
+}
+
+.session-close {
   background: none;
   border: none;
-  color: #888;
+  color: #666;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
   padding: 0 4px;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+  flex-shrink: 0;
 }
 
-.tab-close:hover {
-  color: #fff;
+.session:hover .session-close {
+  opacity: 1;
 }
 
-.new-tab {
-  background: transparent;
-  border: none;
-  color: #888;
-  font-size: 18px;
-  cursor: pointer;
-  padding: 6px 12px;
-}
-
-.new-tab:hover {
-  color: #fff;
+.session-close:hover {
+  color: #e06c75;
 }
 
 /* No session */
@@ -235,6 +366,7 @@ body {
 .status-item.waiting { color: #e5c07b; }
 .status-item.working { color: #61afef; }
 .status-item.idle { opacity: 0.7; }
+.status-item.stopped { color: #666; }
 .status-item.error { color: #e06c75; }
 
 /* Loading state */
@@ -248,4 +380,50 @@ body {
   text-align: center;
   color: #888;
   font-size: 14px;
+}
+
+/* Drag and drop */
+.group.dragging,
+.session.dragging {
+  opacity: 0.5;
+}
+
+.group.drop-before {
+  border-top: 2px solid #007acc;
+}
+
+.group.drop-after {
+  border-bottom: 2px solid #007acc;
+}
+
+.session.drop-before {
+  border-top: 2px solid #007acc;
+  margin-top: -2px;
+}
+
+.session.drop-after {
+  border-bottom: 2px solid #007acc;
+  margin-bottom: -2px;
+}
+
+.group-sessions.drop-target {
+  background: rgba(0, 122, 204, 0.1);
+  border-radius: 4px;
+  min-height: 32px;
+}
+
+.group,
+.session {
+  transition: border-color 0.1s, margin 0.1s, opacity 0.1s;
+}
+
+/* Drag handle cursor */
+.group-header,
+.session {
+  cursor: grab;
+}
+
+.group-header:active,
+.session:active {
+  cursor: grabbing;
 }

@@ -9,6 +9,7 @@ export function getAllGroups(): Group[] {
     id: row.id,
     name: row.name,
     color: row.color,
+    workingDir: row.working_dir || '',
     order: row.order,
     createdAt: new Date(row.created_at),
   }));
@@ -17,12 +18,13 @@ export function getAllGroups(): Group[] {
 export function createGroup(group: Group): void {
   const db = getDatabase();
   db.prepare(`
-    INSERT INTO groups (id, name, color, "order", created_at)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO groups (id, name, color, working_dir, "order", created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
   `).run(
     group.id,
     group.name,
     group.color,
+    group.workingDir || '',
     group.order,
     group.createdAt.toISOString()
   );
@@ -44,6 +46,10 @@ export function updateGroup(id: string, updates: Partial<Group>): void {
   if (updates.order !== undefined) {
     fields.push('"order" = ?');
     values.push(updates.order);
+  }
+  if (updates.workingDir !== undefined) {
+    fields.push('working_dir = ?');
+    values.push(updates.workingDir);
   }
 
   if (fields.length > 0) {

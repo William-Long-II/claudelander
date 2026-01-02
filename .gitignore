@@ -7,7 +7,6 @@ node_modules/
 # Build output
 dist/
 out/
-build/
 
 # Electron
 release/
@@ -26,6 +25,10 @@ release/
 # OS
 .DS_Store
 Thumbs.db
+*:Zone.Identifier
+
+# Media files (development only)
+*.mp3
 
 # Logs
 *.log

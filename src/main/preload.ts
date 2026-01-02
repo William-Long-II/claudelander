@@ -1,10 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import * as os from 'os';
 import { Group, Session } from '../shared/types';
+
+// Get homedir from environment since os module isn't available in sandbox
+const homedir = process.env.HOME || process.env.USERPROFILE || '/';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
-  homedir: os.homedir(),
+  homedir,
 
   // PTY operations
   createSession: (id: string, cwd: string, launchClaude: boolean = false) =>
@@ -38,6 +40,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('state:change', listener);
     };
   },
+
+  // Menu events
+  onMenuNewSession: (callback: () => void) => {
+    ipcRenderer.on('menu:new-session', callback);
+    return () => ipcRenderer.removeListener('menu:new-session', callback);
+  },
+  onMenuCloseSession: (callback: () => void) => {
+    ipcRenderer.on('menu:close-session', callback);
+    return () => ipcRenderer.removeListener('menu:close-session', callback);
+  },
+  onMenuNextSession: (callback: () => void) => {
+    ipcRenderer.on('menu:next-session', callback);
+    return () => ipcRenderer.removeListener('menu:next-session', callback);
+  },
+  onMenuPrevSession: (callback: () => void) => {
+    ipcRenderer.on('menu:prev-session', callback);
+    return () => ipcRenderer.removeListener('menu:prev-session', callback);
+  },
+  onMenuNextWaiting: (callback: () => void) => {
+    ipcRenderer.on('menu:next-waiting', callback);
+    return () => ipcRenderer.removeListener('menu:next-waiting', callback);
+  },
+
+  // Dialogs
+  selectDirectory: (): Promise<string | null> =>
+    ipcRenderer.invoke('dialog:selectDirectory'),
 
   // Database - Groups
   getAllGroups: (): Promise<Group[]> =>

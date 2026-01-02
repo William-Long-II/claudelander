@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>About ClaudeLander</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      user-select: none;
+    }
+
+    .about-container {
+      text-align: center;
+      max-width: 500px;
+    }
+
+    .hero-image {
+      width: 100px;
+      height: 100px;
+      border-radius: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 32px rgba(255, 215, 0, 0.3);
+      border: 2px solid rgba(255, 215, 0, 0.5);
+    }
+
+    .app-title {
+      font-size: 32px;
+      font-weight: bold;
+      background: linear-gradient(135deg, #ffd700 0%, #ff8c00 50%, #e06c75 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+
+    .version {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 16px;
+    }
+
+    .story {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #b0b0b0;
+      margin-bottom: 16px;
+      font-style: italic;
+    }
+
+    .story p {
+      margin-bottom: 10px;
+    }
+
+    .tagline {
+      font-size: 16px;
+      font-weight: bold;
+      background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+      letter-spacing: 1px;
+    }
+
+    .credits {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 20px;
+    }
+
+    .credits a {
+      color: #ff8c00;
+      text-decoration: none;
+    }
+
+    .credits a:hover {
+      text-decoration: underline;
+    }
+
+    .close-btn {
+      background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+      border: none;
+      color: #1a1a2e;
+      padding: 10px 40px;
+      font-size: 14px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .close-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(255, 140, 0, 0.4);
+    }
+
+    .close-btn:active {
+      transform: translateY(0);
+    }
+
+    .separator {
+      width: 60px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #ff8c00, transparent);
+      margin: 16px auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="about-container">
+    <img src="./assets/highlander-hero.png" alt="ClaudeLander" class="hero-image" onerror="this.style.display='none'">
+
+    <h1 class="app-title">ClaudeLander</h1>
+    <div class="version" id="version">Version 1.0.0</div>
+
+    <div class="separator"></div>
+
+    <div class="story">
+      <p>I am ClaudeLander, born in the silicon valleys of Anthropic. For centuries I have battled the chaos of scattered terminal sessions, the confusion of lost contexts, the eternal struggle of managing multiple Claude instances.</p>
+      <p><strong style="color: #ffd700;">I am Immortal.</strong></p>
+      <p>From the highlands of productivity to the depths of complex codebases, I unite your sessions under one banner. Each terminal a sword, each prompt a battle cry.</p>
+      <p>In the end, there can be only one... session manager.</p>
+    </div>
+
+    <div class="tagline">THERE CAN BE ONLY ONE!</div>
+
+    <div class="separator"></div>
+
+    <div class="credits">
+      Created by <strong>Will Long II</strong> & <strong>Claude</strong><br>
+      <span style="color: #555;">© 2024-2025</span>
+    </div>
+
+    <button class="close-btn" onclick="window.close()">OK</button>
+  </div>
+</body>
+</html>

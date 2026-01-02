@@ -24,6 +24,7 @@ function initializeTables(database: Database.Database): void {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       color TEXT DEFAULT '#888888',
+      working_dir TEXT DEFAULT '',
       "order" INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
@@ -46,12 +47,18 @@ function initializeTables(database: Database.Database): void {
     );
   `);
 
+  // Migration: Add working_dir column to groups if it doesn't exist
+  const columns = database.prepare("PRAGMA table_info(groups)").all() as { name: string }[];
+  if (!columns.some(col => col.name === 'working_dir')) {
+    database.exec("ALTER TABLE groups ADD COLUMN working_dir TEXT DEFAULT ''");
+  }
+
   // Insert default group if none exists
   const groupCount = database.prepare('SELECT COUNT(*) as count FROM groups').get() as { count: number };
   if (groupCount.count === 0) {
     database.prepare(`
-      INSERT INTO groups (id, name, color, "order")
-      VALUES ('default', 'Default', '#e06c75', 0)
+      INSERT INTO groups (id, name, color, working_dir, "order")
+      VALUES ('default', 'Default', '#e06c75', '', 0)
     `).run();
   }
 }

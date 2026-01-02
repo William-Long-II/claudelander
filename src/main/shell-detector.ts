@@ -15,11 +15,12 @@ export function detectShell(): ShellInfo {
 }
 
 function detectWindowsShell(): ShellInfo {
-  // Check for WSL
-  if (isWSLAvailable()) {
+  // Check for WSL with available distros
+  const distros = getWSLDistros();
+  if (distros.length > 0) {
     return {
       shell: 'wsl.exe',
-      args: ['-d', 'Ubuntu'],
+      args: ['-d', distros[0]], // Use first available distro
       isWSL: true,
     };
   }
@@ -50,15 +51,6 @@ function detectUnixShell(): ShellInfo {
     args: [],
     isWSL: false,
   };
-}
-
-function isWSLAvailable(): boolean {
-  try {
-    execSync('wsl.exe --list --quiet', { stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export function getWSLDistros(): string[] {

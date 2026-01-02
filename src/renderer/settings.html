@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Settings - ClaudeLander</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 24px 40px;
+      margin: 0;
+      user-select: none;
+    }
+
+    .settings-container {
+      width: 100%;
+      max-width: none;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #3c3c3c;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      color: #888;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+
+    .close-btn:hover {
+      color: #fff;
+    }
+
+    .section {
+      margin-bottom: 24px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #888;
+      margin-bottom: 12px;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #2d2d2d;
+      gap: 20px;
+    }
+
+    .setting-row:last-child {
+      border-bottom: none;
+    }
+
+    .setting-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .setting-label {
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .setting-description {
+      font-size: 12px;
+      color: #888;
+    }
+
+    .setting-control {
+      flex-shrink: 0;
+    }
+
+    /* Toggle switch */
+    .toggle {
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+      position: relative;
+      vertical-align: middle;
+    }
+
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      width: 44px;
+      height: 24px;
+      background-color: #3a3a3a;
+      border: 2px solid #666;
+      transition: 0.2s;
+      border-radius: 24px;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 2px;
+      top: 2px;
+      background-color: #999;
+      transition: 0.2s;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+
+    .toggle input:checked + .toggle-slider {
+      background-color: #ff8c00;
+      border-color: #ffd700;
+    }
+
+    .toggle input:checked + .toggle-slider:before {
+      transform: translateX(20px);
+      background-color: #fff;
+    }
+
+    /* Select dropdown */
+    .select {
+      background: #3c3c3c;
+      border: 1px solid #555;
+      color: #d4d4d4;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      cursor: pointer;
+      min-width: 120px;
+    }
+
+    .select:focus {
+      outline: none;
+      border-color: #007acc;
+    }
+
+    /* Range slider */
+    .range-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .range {
+      -webkit-appearance: none;
+      width: 100px;
+      height: 6px;
+      border-radius: 3px;
+      background: #555;
+      border: 1px solid #666;
+      outline: none;
+    }
+
+    .range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #007acc;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .range-value {
+      font-size: 12px;
+      color: #888;
+      min-width: 40px;
+      text-align: right;
+    }
+
+    .footer {
+      margin-top: 32px;
+      padding-top: 16px;
+      border-top: 1px solid #3c3c3c;
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 8px 20px;
+      border-radius: 4px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-secondary {
+      background: #3c3c3c;
+      border: 1px solid #555;
+      color: #d4d4d4;
+    }
+
+    .btn-secondary:hover {
+      background: #4c4c4c;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+      border: none;
+      color: #1e1e1e;
+      font-weight: 600;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+    }
+
+    .version-info {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 11px;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <div class="settings-container">
+    <div class="header">
+      <h1>Settings</h1>
+      <button class="close-btn" onclick="window.close()" title="Close">×</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Sessions</div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Auto-launch Claude</div>
+          <div class="setting-description">Automatically start Claude when creating new sessions</div>
+        </div>
+        <div class="setting-control">
+          <label class="toggle">
+            <input type="checkbox" id="autoLaunchClaude" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Default Shell</div>
+          <div class="setting-description">Shell to use when not launching Claude</div>
+        </div>
+        <div class="setting-control">
+          <select class="select" id="defaultShell">
+            <option value="bash">Bash</option>
+            <option value="zsh">Zsh</option>
+            <option value="fish">Fish</option>
+            <option value="powershell">PowerShell</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Appearance</div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Show Splash Screen</div>
+          <div class="setting-description">Display splash screen on startup</div>
+        </div>
+        <div class="setting-control">
+          <label class="toggle">
+            <input type="checkbox" id="showSplash" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Splash Duration</div>
+          <div class="setting-description">How long to show the splash screen</div>
+        </div>
+        <div class="setting-control">
+          <div class="range-container">
+            <input type="range" class="range" id="splashDuration" min="1" max="5" step="0.5" value="2.5">
+            <span class="range-value" id="splashDurationValue">2.5s</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Terminal</div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Font Size</div>
+          <div class="setting-description">Terminal text size</div>
+        </div>
+        <div class="setting-control">
+          <div class="range-container">
+            <input type="range" class="range" id="fontSize" min="10" max="24" step="1" value="14">
+            <span class="range-value" id="fontSizeValue">14px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Enable WebGL Rendering</div>
+          <div class="setting-description">Use GPU acceleration for terminal (recommended)</div>
+        </div>
+        <div class="setting-control">
+          <label class="toggle">
+            <input type="checkbox" id="webglRenderer" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <button class="btn btn-secondary" onclick="resetDefaults()">Reset to Defaults</button>
+      <button class="btn btn-primary" onclick="saveAndClose()">Save & Close</button>
+    </div>
+
+    <div class="version-info">
+      ClaudeLander v1.0.0 - There Can Be Only One
+    </div>
+  </div>
+
+  <script>
+    // Update range displays
+    document.getElementById('splashDuration').addEventListener('input', (e) => {
+      document.getElementById('splashDurationValue').textContent = e.target.value + 's';
+    });
+
+    document.getElementById('fontSize').addEventListener('input', (e) => {
+      document.getElementById('fontSizeValue').textContent = e.target.value + 'px';
+    });
+
+    function resetDefaults() {
+      document.getElementById('autoLaunchClaude').checked = true;
+      document.getElementById('defaultShell').value = 'bash';
+      document.getElementById('showSplash').checked = true;
+      document.getElementById('splashDuration').value = 2.5;
+      document.getElementById('splashDurationValue').textContent = '2.5s';
+      document.getElementById('fontSize').value = 14;
+      document.getElementById('fontSizeValue').textContent = '14px';
+      document.getElementById('webglRenderer').checked = true;
+    }
+
+    function saveAndClose() {
+      // Settings would be saved via IPC in a full implementation
+      window.close();
+    }
+
+    // Close on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') window.close();
+    });
+  </script>
+</body>
+</html>

@@ -11,3 +11,92 @@
 .terminal-container .xterm-viewport {
   overflow-y: auto;
 }
+
+.terminal-stopped {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #888;
+  background: #1e1e1e;
+}
+
+.terminal-stopped p {
+  font-size: 14px;
+}
+
+.terminal-stopped button {
+  padding: 10px 24px;
+  background: #0e639c;
+  border: none;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.terminal-stopped button:hover {
+  background: #1177bb;
+}
+
+.terminal-error {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #888;
+  background: #1e1e1e;
+}
+
+.terminal-error .error-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #4d2626;
+  color: #e06c75;
+  font-size: 24px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.terminal-error .error-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #e06c75;
+}
+
+.terminal-error .error-message {
+  font-size: 13px;
+  color: #888;
+  max-width: 400px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.terminal-error .error-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.terminal-error button {
+  padding: 8px 20px;
+  background: #0e639c;
+  border: none;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.terminal-error button:hover {
+  background: #1177bb;
+}

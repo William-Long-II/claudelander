@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import { Group } from '../../shared/types';
 
 const DEFAULT_COLORS = ['#e06c75', '#98c379', '#e5c07b', '#61afef', '#c678dd', '#56b6c2'];
@@ -27,9 +26,10 @@ export function useGroups() {
     return new Promise((resolve, reject) => {
       setGroups(prev => {
         const group: Group = {
-          id: uuidv4(),
+          id: crypto.randomUUID(),
           name,
           color: DEFAULT_COLORS[prev.length % DEFAULT_COLORS.length],
+          workingDir: '',
           order: prev.length,
           createdAt: new Date(),
         };
@@ -71,11 +71,39 @@ export function useGroups() {
     }
   }, []);
 
+  const reorderGroup = useCallback(async (groupId: string, newOrder: number) => {
+    setGroups(prev => {
+      const group = prev.find(g => g.id === groupId);
+      if (!group) return prev;
+
+      // Remove group from current position
+      const filtered = prev.filter(g => g.id !== groupId);
+
+      // Insert at new position
+      filtered.splice(newOrder, 0, group);
+
+      // Update orders
+      const reordered = filtered.map((g, idx) => ({
+        ...g,
+        order: idx,
+      }));
+
+      // Persist changes
+      reordered.forEach(g => {
+        window.electronAPI.updateGroup(g.id, { order: g.order })
+          .catch(err => console.error('Failed to update group order:', err));
+      });
+
+      return reordered;
+    });
+  }, []);
+
   return {
     groups,
     loading,
     createGroup,
     updateGroup,
     removeGroup,
+    reorderGroup,
   };
 }
