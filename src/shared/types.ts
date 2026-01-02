@@ -19,6 +19,8 @@ export interface Group {
   workingDir: string;
   order: number;
   createdAt: Date;
+  parentId: string | null;
+  collapsed: boolean;
 }
 
 export interface AppState {

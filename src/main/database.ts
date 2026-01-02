@@ -53,6 +53,16 @@ function initializeTables(database: Database.Database): void {
     database.exec("ALTER TABLE groups ADD COLUMN working_dir TEXT DEFAULT ''");
   }
 
+  // Migration: Add parent_id column to groups if it doesn't exist
+  if (!columns.some(col => col.name === 'parent_id')) {
+    database.exec("ALTER TABLE groups ADD COLUMN parent_id TEXT DEFAULT NULL");
+  }
+
+  // Migration: Add collapsed column to groups if it doesn't exist
+  if (!columns.some(col => col.name === 'collapsed')) {
+    database.exec("ALTER TABLE groups ADD COLUMN collapsed INTEGER DEFAULT 0");
+  }
+
   // Insert default group if none exists
   const groupCount = database.prepare('SELECT COUNT(*) as count FROM groups').get() as { count: number };
   if (groupCount.count === 0) {

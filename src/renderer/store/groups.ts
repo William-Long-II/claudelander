@@ -32,6 +32,8 @@ export function useGroups() {
           workingDir: '',
           order: prev.length,
           createdAt: new Date(),
+          parentId: null,
+          collapsed: false,
         };
 
         // Persist asynchronously

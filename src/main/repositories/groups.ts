@@ -12,21 +12,25 @@ export function getAllGroups(): Group[] {
     workingDir: row.working_dir || '',
     order: row.order,
     createdAt: new Date(row.created_at),
+    parentId: row.parent_id || null,
+    collapsed: Boolean(row.collapsed),
   }));
 }
 
 export function createGroup(group: Group): void {
   const db = getDatabase();
   db.prepare(`
-    INSERT INTO groups (id, name, color, working_dir, "order", created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO groups (id, name, color, working_dir, "order", created_at, parent_id, collapsed)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     group.id,
     group.name,
     group.color,
     group.workingDir || '',
     group.order,
-    group.createdAt.toISOString()
+    group.createdAt.toISOString(),
+    group.parentId || null,
+    group.collapsed ? 1 : 0
   );
 }
 
@@ -50,6 +54,14 @@ export function updateGroup(id: string, updates: Partial<Group>): void {
   if (updates.workingDir !== undefined) {
     fields.push('working_dir = ?');
     values.push(updates.workingDir);
+  }
+  if (updates.parentId !== undefined) {
+    fields.push('parent_id = ?');
+    values.push(updates.parentId);
+  }
+  if (updates.collapsed !== undefined) {
+    fields.push('collapsed = ?');
+    values.push(updates.collapsed ? 1 : 0);
   }
 
   if (fields.length > 0) {
