@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import Terminal from './components/Terminal';
 import { useSessions } from './store/sessions';
 import { useGroups } from './store/groups';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import './styles/global.css';
 
 const App: React.FC = () => {
@@ -38,6 +39,45 @@ const App: React.FC = () => {
   const handleRemoveSession = async (id: string) => {
     await removeSession(id);
   };
+
+  const handleNextSession = useCallback(() => {
+    const currentIndex = sessions.findIndex(s => s.id === activeSessionId);
+    const nextIndex = (currentIndex + 1) % sessions.length;
+    if (sessions[nextIndex]) {
+      setActiveSessionId(sessions[nextIndex].id);
+    }
+  }, [sessions, activeSessionId, setActiveSessionId]);
+
+  const handlePrevSession = useCallback(() => {
+    const currentIndex = sessions.findIndex(s => s.id === activeSessionId);
+    const prevIndex = currentIndex <= 0 ? sessions.length - 1 : currentIndex - 1;
+    if (sessions[prevIndex]) {
+      setActiveSessionId(sessions[prevIndex].id);
+    }
+  }, [sessions, activeSessionId, setActiveSessionId]);
+
+  const handleNextWaiting = useCallback(() => {
+    const waitingSessions = sessions.filter(s => s.state === 'waiting');
+    if (waitingSessions.length > 0) {
+      const currentIndex = waitingSessions.findIndex(s => s.id === activeSessionId);
+      const nextIndex = (currentIndex + 1) % waitingSessions.length;
+      setActiveSessionId(waitingSessions[nextIndex].id);
+    }
+  }, [sessions, activeSessionId, setActiveSessionId]);
+
+  const handleCloseSession = useCallback(async () => {
+    if (activeSessionId) {
+      await handleRemoveSession(activeSessionId);
+    }
+  }, [activeSessionId, handleRemoveSession]);
+
+  useKeyboardShortcuts({
+    onNewSession: () => groups[0] && handleNewSession(groups[0].id),
+    onNextSession: handleNextSession,
+    onPrevSession: handlePrevSession,
+    onNextWaiting: handleNextWaiting,
+    onCloseSession: handleCloseSession,
+  });
 
   if (isLoading) {
     return (
