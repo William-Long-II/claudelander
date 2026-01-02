@@ -25,6 +25,9 @@ export interface ElectronAPI {
   onMenuPrevSession: (callback: () => void) => () => void;
   onMenuNextWaiting: (callback: () => void) => () => void;
 
+  // Session selection from notifications/tray
+  onSessionSelect: (callback: (sessionId: string) => void) => () => void;
+
   // Dialogs
   selectDirectory: () => Promise<string | null>;
 

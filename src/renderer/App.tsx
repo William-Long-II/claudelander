@@ -293,7 +293,16 @@ const App: React.FC = () => {
 
   useKeyboardShortcuts(shortcutHandlers);
 
-  // Listen for menu events
+  // Handle session selection from notifications/tray
+  const handleSessionSelect = useCallback((sessionId: string) => {
+    // Verify the session exists before selecting
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      setActiveSessionId(sessionId);
+    }
+  }, [sessions, setActiveSessionId]);
+
+  // Listen for menu events and notification/tray selections
   useEffect(() => {
     const cleanups = [
       window.electronAPI.onMenuNewSession(handleKeyboardNewSession),
@@ -301,9 +310,10 @@ const App: React.FC = () => {
       window.electronAPI.onMenuNextSession(handleNextSession),
       window.electronAPI.onMenuPrevSession(handlePrevSession),
       window.electronAPI.onMenuNextWaiting(handleNextWaiting),
+      window.electronAPI.onSessionSelect(handleSessionSelect),
     ];
     return () => cleanups.forEach(cleanup => cleanup());
-  }, [handleKeyboardNewSession, handleCloseSession, handleNextSession, handlePrevSession, handleNextWaiting]);
+  }, [handleKeyboardNewSession, handleCloseSession, handleNextSession, handlePrevSession, handleNextWaiting, handleSessionSelect]);
 
   if (isLoading) {
     return (

@@ -324,6 +324,49 @@
     </div>
 
     <div class="section">
+      <div class="section-title">Notifications & System Tray</div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Enable Notifications</div>
+          <div class="setting-description">Show system notifications when sessions need attention</div>
+        </div>
+        <div class="setting-control">
+          <label class="toggle">
+            <input type="checkbox" id="enableNotifications" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Notification Sound</div>
+          <div class="setting-description">Play sound with notifications</div>
+        </div>
+        <div class="setting-control">
+          <label class="toggle">
+            <input type="checkbox" id="notificationSound" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Close to Tray</div>
+          <div class="setting-description">Minimize to system tray instead of quitting when closing window</div>
+        </div>
+        <div class="setting-control">
+          <label class="toggle">
+            <input type="checkbox" id="closeToTray" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
       <div class="section-title">Terminal</div>
 
       <div class="setting-row">
@@ -410,6 +453,9 @@
         document.getElementById('showSplash').checked = settings.showSplash === 'true';
         document.getElementById('splashDuration').value = settings.splashDuration || '2.5';
         document.getElementById('splashDurationValue').textContent = (settings.splashDuration || '2.5') + 's';
+        document.getElementById('enableNotifications').checked = settings.enableNotifications !== 'false';
+        document.getElementById('notificationSound').checked = settings.notificationSound !== 'false';
+        document.getElementById('closeToTray').checked = settings.closeToTray !== 'false';
         document.getElementById('fontSize').value = settings.fontSize || '14';
         document.getElementById('fontSizeValue').textContent = (settings.fontSize || '14') + 'px';
         document.getElementById('webglRenderer').checked = settings.webglRenderer === 'true';
@@ -428,6 +474,9 @@
       document.getElementById('showSplash').checked = true;
       document.getElementById('splashDuration').value = 2.5;
       document.getElementById('splashDurationValue').textContent = '2.5s';
+      document.getElementById('enableNotifications').checked = true;
+      document.getElementById('notificationSound').checked = true;
+      document.getElementById('closeToTray').checked = true;
       document.getElementById('fontSize').value = 14;
       document.getElementById('fontSizeValue').textContent = '14px';
       document.getElementById('webglRenderer').checked = true;
@@ -450,6 +499,12 @@
           document.getElementById('showSplash').checked.toString());
         await window.settingsAPI.setPreference('splashDuration',
           document.getElementById('splashDuration').value);
+        await window.settingsAPI.setPreference('enableNotifications',
+          document.getElementById('enableNotifications').checked.toString());
+        await window.settingsAPI.setPreference('notificationSound',
+          document.getElementById('notificationSound').checked.toString());
+        await window.settingsAPI.setPreference('closeToTray',
+          document.getElementById('closeToTray').checked.toString());
         await window.settingsAPI.setPreference('fontSize',
           document.getElementById('fontSize').value);
         await window.settingsAPI.setPreference('webglRenderer',

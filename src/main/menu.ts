@@ -6,7 +6,7 @@ const settingsPreloadPath = path.join(__dirname, 'preload-settings.js');
 let aboutWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 
-function showSettingsWindow(parentWindow: BrowserWindow): void {
+export function showSettingsWindow(parentWindow: BrowserWindow): void {
   if (settingsWindow) {
     settingsWindow.focus();
     return;

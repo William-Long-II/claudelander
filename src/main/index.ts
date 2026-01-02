@@ -6,15 +6,56 @@ import * as groupsRepo from './repositories/groups';
 import * as sessionsRepo from './repositories/sessions';
 import * as prefsRepo from './repositories/preferences';
 import { StateMonitor } from './state-monitor';
-import { createApplicationMenu } from './menu';
+import { createApplicationMenu, showSettingsWindow } from './menu';
 import { initAutoUpdater } from './auto-updater';
+import { notificationManager } from './notification-manager';
+import { trayManager } from './tray-manager';
 import { Group, Session } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 let stateMonitor: StateMonitor | null = null;
+let isQuitting = false;
+
+// Track sessions by state for tray updates
+const sessionStates: Map<string, { name: string; state: string }> = new Map();
 
 const SPLASH_DURATION = 2500; // 2.5 seconds
+
+function updateTrayWithWaitingSessions(): void {
+  const waitingSessions = Array.from(sessionStates.entries())
+    .filter(([_, info]) => info.state === 'waiting')
+    .map(([id, info]) => ({ id, name: info.name }));
+
+  trayManager.updateWaitingSessions(waitingSessions);
+}
+
+function handleStateChange(sessionId: string, state: string, sessionName?: string): void {
+  // Update our tracking map
+  const existing = sessionStates.get(sessionId);
+  const name = sessionName || existing?.name || sessionId;
+
+  if (state === 'waiting') {
+    sessionStates.set(sessionId, { name, state });
+
+    // Show notification
+    notificationManager.showWaitingNotification({
+      sessionId,
+      sessionName: name,
+      message: 'Waiting for input',
+    });
+  } else {
+    // Update state but keep name
+    if (existing) {
+      sessionStates.set(sessionId, { ...existing, state });
+    } else {
+      sessionStates.set(sessionId, { name, state });
+    }
+  }
+
+  // Update tray
+  updateTrayWithWaitingSessions();
+}
 
 function createSplashWindow(): void {
   splashWindow = new BrowserWindow({
@@ -60,6 +101,8 @@ function createWindow(): void {
     } catch (error) {
       console.error('Failed to update session state in database:', error);
     }
+    // Handle notifications and tray updates
+    handleStateChange(event.sessionId, event.state);
   });
 
   // Restore saved window bounds or use defaults
@@ -107,6 +150,17 @@ function createWindow(): void {
     initAutoUpdater(mainWindow);
   }
 
+  // Initialize notification manager
+  notificationManager.setMainWindow(mainWindow);
+
+  // Initialize tray manager
+  trayManager.initialize(mainWindow);
+  trayManager.setShowSettingsHandler(() => {
+    if (mainWindow) {
+      showSettingsWindow(mainWindow);
+    }
+  });
+
   // PTY data forwarding
   ptyManager.on('data', ({ id, data }) => {
     mainWindow?.webContents.send('pty:data', id, data);
@@ -128,6 +182,8 @@ function createWindow(): void {
     } catch (error) {
       console.error('Failed to update session state in database:', error);
     }
+    // Handle notifications and tray updates
+    handleStateChange(event.sessionId, event.state);
   });
 
   // Save window bounds on resize/move
@@ -154,6 +210,19 @@ function createWindow(): void {
 
   mainWindow.on('resize', saveWindowBounds);
   mainWindow.on('move', saveWindowBounds);
+
+  // Handle close-to-tray behavior
+  mainWindow.on('close', (event) => {
+    if (!isQuitting) {
+      const closeToTray = prefsRepo.getPreference('closeToTray');
+      // Default is true (close to tray)
+      if (closeToTray !== 'false') {
+        event.preventDefault();
+        mainWindow?.hide();
+        return;
+      }
+    }
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -240,6 +309,9 @@ ipcMain.handle('prefs:getAll', async () => {
     customShellPath: prefsRepo.getPreference('customShellPath') ?? '',
     showSplash: prefsRepo.getPreference('showSplash') ?? 'true',
     splashDuration: prefsRepo.getPreference('splashDuration') ?? '2.5',
+    enableNotifications: prefsRepo.getPreference('enableNotifications') ?? 'true',
+    notificationSound: prefsRepo.getPreference('notificationSound') ?? 'true',
+    closeToTray: prefsRepo.getPreference('closeToTray') ?? 'true',
     fontSize: prefsRepo.getPreference('fontSize') ?? '14',
     webglRenderer: prefsRepo.getPreference('webglRenderer') ?? 'true',
   };
@@ -252,18 +324,27 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  // On macOS, apps typically stay open until explicitly quit
+  // For other platforms, only quit if not using close-to-tray
   if (process.platform !== 'darwin') {
-    app.quit();
+    const closeToTray = prefsRepo.getPreference('closeToTray');
+    if (closeToTray === 'false') {
+      app.quit();
+    }
   }
 });
 
 app.on('activate', () => {
   if (mainWindow === null) {
     createWindow();
+  } else {
+    mainWindow.show();
   }
 });
 
 app.on('before-quit', () => {
+  isQuitting = true;
+  trayManager.destroy();
   stateMonitor?.stop();
   closeDatabase();
 });

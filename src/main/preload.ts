@@ -63,6 +63,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('menu:next-waiting', callback);
   },
 
+  // Session selection from notifications/tray
+  onSessionSelect: (callback: (sessionId: string) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, sessionId: string) => callback(sessionId);
+    ipcRenderer.on('session:select', listener);
+    return () => ipcRenderer.removeListener('session:select', listener);
+  },
+
   // Dialogs
   selectDirectory: (): Promise<string | null> =>
     ipcRenderer.invoke('dialog:selectDirectory'),
