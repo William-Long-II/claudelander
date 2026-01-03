@@ -300,20 +300,12 @@ body {
 .session-info {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.session-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.session-dir {
-  font-size: 10px;
-  color: #666;
+.session-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

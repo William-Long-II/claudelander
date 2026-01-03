@@ -640,9 +640,6 @@ const App: React.FC = () => {
                           {session.name}
                         </span>
                       )}
-                      <span className="session-dir" title={session.workingDir}>
-                        {session.workingDir.split('/').pop() || session.workingDir}
-                      </span>
                     </div>
                     <span className={`status-pill ${session.state}`}>{session.state}</span>
                     <button
@@ -800,9 +797,6 @@ const App: React.FC = () => {
                             {session.name}
                           </span>
                         )}
-                        <span className="session-dir" title={session.workingDir}>
-                          {session.workingDir.split('/').pop() || session.workingDir}
-                        </span>
                       </div>
                       <span className={`status-pill ${session.state}`}>{session.state}</span>
                       <button
