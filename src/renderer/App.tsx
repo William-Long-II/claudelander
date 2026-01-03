@@ -308,13 +308,120 @@ const App: React.FC = () => {
     }
   }, [groups, handleNewSession]);
 
+  // Build flat navigation list for keyboard navigation
+  const navItems = useMemo(() => {
+    const items: Array<{ id: string; type: 'group' | 'session'; parentId?: string }> = [];
+
+    getTopLevelGroups().forEach(group => {
+      items.push({ id: group.id, type: 'group' });
+
+      if (!group.collapsed) {
+        getSessionsByGroup(group.id).sort((a, b) => a.order - b.order).forEach(session => {
+          items.push({ id: session.id, type: 'session', parentId: group.id });
+        });
+
+        getSubGroups(group.id).forEach(subGroup => {
+          items.push({ id: subGroup.id, type: 'group', parentId: group.id });
+
+          if (!subGroup.collapsed) {
+            getSessionsByGroup(subGroup.id).sort((a, b) => a.order - b.order).forEach(session => {
+              items.push({ id: session.id, type: 'session', parentId: subGroup.id });
+            });
+          }
+        });
+      }
+    });
+
+    return items;
+  }, [groups, sessions, getTopLevelGroups, getSubGroups, getSessionsByGroup]);
+
+  const handleFocusSidebar = useCallback(() => {
+    sidebarRef.current?.focus();
+    if (!focusedItemId && navItems.length > 0) {
+      setFocusedItemId(navItems[0].id);
+      setFocusedItemType(navItems[0].type);
+    }
+  }, [focusedItemId, navItems]);
+
+  const handleNavigateUp = useCallback(() => {
+    if (!sidebarFocused) return;
+    const currentIndex = navItems.findIndex(item => item.id === focusedItemId);
+    const prevIndex = currentIndex > 0 ? currentIndex - 1 : navItems.length - 1;
+    setFocusedItemId(navItems[prevIndex].id);
+    setFocusedItemType(navItems[prevIndex].type);
+  }, [sidebarFocused, focusedItemId, navItems]);
+
+  const handleNavigateDown = useCallback(() => {
+    if (!sidebarFocused) return;
+    const currentIndex = navItems.findIndex(item => item.id === focusedItemId);
+    const nextIndex = currentIndex < navItems.length - 1 ? currentIndex + 1 : 0;
+    setFocusedItemId(navItems[nextIndex].id);
+    setFocusedItemType(navItems[nextIndex].type);
+  }, [sidebarFocused, focusedItemId, navItems]);
+
+  const handleCollapse = useCallback(() => {
+    if (!sidebarFocused || !focusedItemId) return;
+    if (focusedItemType === 'group') {
+      const group = groups.find(g => g.id === focusedItemId);
+      if (group && !group.collapsed) {
+        toggleCollapse(focusedItemId);
+      }
+    } else if (focusedItemType === 'session') {
+      const session = sessions.find(s => s.id === focusedItemId);
+      if (session) {
+        toggleCollapse(session.groupId);
+      }
+    }
+  }, [sidebarFocused, focusedItemId, focusedItemType, groups, sessions, toggleCollapse]);
+
+  const handleExpand = useCallback(() => {
+    if (!sidebarFocused || !focusedItemId) return;
+    if (focusedItemType === 'group') {
+      const group = groups.find(g => g.id === focusedItemId);
+      if (group && group.collapsed) {
+        toggleCollapse(focusedItemId);
+      }
+    }
+  }, [sidebarFocused, focusedItemId, focusedItemType, groups, toggleCollapse]);
+
+  const handleSelect = useCallback(() => {
+    if (!sidebarFocused || !focusedItemId) return;
+    if (focusedItemType === 'group') {
+      toggleCollapse(focusedItemId);
+    } else if (focusedItemType === 'session') {
+      setActiveSessionId(focusedItemId);
+      setSidebarFocused(false);
+    }
+  }, [sidebarFocused, focusedItemId, focusedItemType, toggleCollapse, setActiveSessionId]);
+
+  const handleNewGroup = useCallback(async () => {
+    await createGroup(`Group ${groups.filter(g => !g.parentId).length + 1}`);
+  }, [createGroup, groups]);
+
+  const handleNewSubGroup = useCallback(async () => {
+    if (focusedItemType === 'group' && focusedItemId) {
+      const group = groups.find(g => g.id === focusedItemId);
+      if (group && !group.parentId) {
+        await handleCreateSubGroup(focusedItemId);
+      }
+    }
+  }, [focusedItemType, focusedItemId, groups, handleCreateSubGroup]);
+
   const shortcutHandlers = useMemo(() => ({
     onNewSession: handleKeyboardNewSession,
     onNextSession: handleNextSession,
     onPrevSession: handlePrevSession,
     onNextWaiting: handleNextWaiting,
     onCloseSession: handleCloseSession,
-  }), [handleKeyboardNewSession, handleNextSession, handlePrevSession, handleNextWaiting, handleCloseSession]);
+    onFocusSidebar: handleFocusSidebar,
+    onNewGroup: handleNewGroup,
+    onNewSubGroup: handleNewSubGroup,
+    onNavigateUp: handleNavigateUp,
+    onNavigateDown: handleNavigateDown,
+    onCollapse: handleCollapse,
+    onExpand: handleExpand,
+    onSelect: handleSelect,
+  }), [handleKeyboardNewSession, handleNextSession, handlePrevSession, handleNextWaiting, handleCloseSession, handleFocusSidebar, handleNewGroup, handleNewSubGroup, handleNavigateUp, handleNavigateDown, handleCollapse, handleExpand, handleSelect]);
 
   useKeyboardShortcuts(shortcutHandlers);
 
