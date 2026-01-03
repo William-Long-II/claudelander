@@ -80,7 +80,18 @@ const App: React.FC = () => {
   }, [getEffectiveWorkingDir, getSessionsByGroup, createSession, homedir]);
 
   const handleCreateGroup = async () => {
-    await createGroup(`Group ${groups.length + 1}`);
+    const name = `Group ${groups.filter(g => !g.parentId).length + 1}`;
+
+    // Create the group first
+    const newGroup = await createGroup(name);
+
+    // Prompt for directory (optional)
+    const dir = await window.electronAPI.selectDirectory();
+
+    // If directory was selected, update the group
+    if (dir) {
+      await updateGroup(newGroup.id, { workingDir: dir });
+    }
   };
 
   const handleCreateSubGroup = async (parentId: string) => {
@@ -396,8 +407,14 @@ const App: React.FC = () => {
   }, [sidebarFocused, focusedItemId, focusedItemType, toggleCollapse, setActiveSessionId]);
 
   const handleNewGroup = useCallback(async () => {
-    await createGroup(`Group ${groups.filter(g => !g.parentId).length + 1}`);
-  }, [createGroup, groups]);
+    const name = `Group ${groups.filter(g => !g.parentId).length + 1}`;
+    const newGroup = await createGroup(name);
+
+    const dir = await window.electronAPI.selectDirectory();
+    if (dir) {
+      await updateGroup(newGroup.id, { workingDir: dir });
+    }
+  }, [createGroup, updateGroup, groups]);
 
   const getContextShortcuts = useCallback(() => {
     if (sidebarFocused) {
