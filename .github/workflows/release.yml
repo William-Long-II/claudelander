@@ -133,3 +133,79 @@ jobs:
             artifacts/**/latest*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Update Homebrew tap after release
+  update-homebrew:
+    needs: [check-version, release]
+    if: needs.check-version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Wait for release assets to be available
+        run: sleep 30
+
+      - name: Download macOS release assets
+        run: |
+          VERSION="${{ needs.check-version.outputs.version }}"
+          curl -L -o intel.zip "https://github.com/William-Long-II/claudelander/releases/download/v${VERSION}/ClaudeLander-${VERSION}-mac.zip"
+          curl -L -o arm64.zip "https://github.com/William-Long-II/claudelander/releases/download/v${VERSION}/ClaudeLander-${VERSION}-arm64-mac.zip"
+
+      - name: Calculate SHA256 hashes
+        id: hashes
+        run: |
+          echo "intel_sha256=$(sha256sum intel.zip | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "arm64_sha256=$(sha256sum arm64.zip | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: William-Long-II/homebrew-claudelander
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update cask formula
+        run: |
+          VERSION="${{ needs.check-version.outputs.version }}"
+          INTEL_SHA="${{ steps.hashes.outputs.intel_sha256 }}"
+          ARM64_SHA="${{ steps.hashes.outputs.arm64_sha256 }}"
+
+          cat > homebrew-tap/Casks/claudelander.rb << 'CASKEOF'
+          cask "claudelander" do
+            version "VERSION_PLACEHOLDER"
+
+            on_intel do
+              sha256 "INTEL_SHA256_PLACEHOLDER"
+              url "https://github.com/William-Long-II/claudelander/releases/download/v#{version}/ClaudeLander-#{version}-mac.zip"
+            end
+
+            on_arm do
+              sha256 "ARM64_SHA256_PLACEHOLDER"
+              url "https://github.com/William-Long-II/claudelander/releases/download/v#{version}/ClaudeLander-#{version}-arm64-mac.zip"
+            end
+
+            name "ClaudeLander"
+            desc "Cross-platform Claude Code session manager"
+            homepage "https://github.com/William-Long-II/claudelander"
+
+            app "ClaudeLander.app"
+
+            zap trash: [
+              "~/Library/Application Support/claudelander",
+              "~/Library/Preferences/com.claudelander.app.plist",
+              "~/Library/Saved Application State/com.claudelander.app.savedState",
+            ]
+          end
+          CASKEOF
+
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" homebrew-tap/Casks/claudelander.rb
+          sed -i "s/INTEL_SHA256_PLACEHOLDER/${INTEL_SHA}/g" homebrew-tap/Casks/claudelander.rb
+          sed -i "s/ARM64_SHA256_PLACEHOLDER/${ARM64_SHA}/g" homebrew-tap/Casks/claudelander.rb
+
+      - name: Commit and push
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/claudelander.rb
+          git commit -m "Update claudelander to v${{ needs.check-version.outputs.version }}"
+          git push

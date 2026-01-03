@@ -51,6 +51,12 @@ New versions download automatically.
 
 ## Installation
 
+### macOS (Recommended)
+```bash
+brew tap William-Long-II/claudelander
+brew install --cask claudelander
+```
+
 ### Download
 Grab the latest release for your platform from [Releases](https://github.com/William-Long-II/claudelander/releases).
 
@@ -59,6 +65,11 @@ Grab the latest release for your platform from [Releases](https://github.com/Wil
 | Windows | `ClaudeLander-Setup-x.x.x.exe` |
 | macOS | `ClaudeLander-x.x.x.dmg` |
 | Linux | `ClaudeLander-x.x.x.AppImage` or `.deb` |
+
+> **macOS Note:** If downloading directly (not via Homebrew), the app is unsigned. Run this before opening:
+> ```bash
+> xattr -cr /Applications/ClaudeLander.app
+> ```
 
 ### Build from Source
 
