@@ -9,6 +9,7 @@ interface TerminalProps {
   cwd: string;
   launchClaude?: boolean;
   isStopped?: boolean;
+  isActive?: boolean;
   onStart?: () => void;
   onError?: (error: string) => void;
 }
@@ -20,13 +21,25 @@ interface ContextMenuState {
   hasSelection: boolean;
 }
 
-const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd, launchClaude = true, isStopped = false, onStart, onError }) => {
+const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd, launchClaude = true, isStopped = false, isActive = false, onStart, onError }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const [isRunning, setIsRunning] = useState(!isStopped);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, hasSelection: false });
   const [error, setError] = useState<string | null>(null);
+
+  // Listen for focus-terminal event to focus this terminal
+  useEffect(() => {
+    const handleFocusTerminal = () => {
+      if (isActive && xtermRef.current) {
+        xtermRef.current.focus();
+      }
+    };
+
+    window.addEventListener('focus-terminal', handleFocusTerminal);
+    return () => window.removeEventListener('focus-terminal', handleFocusTerminal);
+  }, [isActive]);
 
   // Copy text from terminal selection
   const handleCopy = useCallback(() => {
@@ -116,26 +129,52 @@ const Terminal: React.FC<TerminalProps> = ({ sessionId, cwd, launchClaude = true
       }
     });
 
-    // Handle keyboard shortcuts for copy/paste
+    // Handle keyboard shortcuts
     term.attachCustomKeyEventHandler((event) => {
+      const isMod = event.ctrlKey || event.metaKey;
+
       // Ctrl+Shift+C = Copy
-      if (event.ctrlKey && event.shiftKey && event.key === 'C') {
+      if (isMod && event.shiftKey && event.key === 'C') {
         const selection = term.getSelection();
         if (selection) {
           navigator.clipboard.writeText(selection);
         }
-        return false; // Prevent default
+        return false;
       }
       // Ctrl+Shift+V = Paste
-      if (event.ctrlKey && event.shiftKey && event.key === 'V') {
+      if (isMod && event.shiftKey && event.key === 'V') {
         navigator.clipboard.readText().then(text => {
           if (text) {
             window.electronAPI.writeToSession(sessionId, text);
           }
         });
-        return false; // Prevent default
+        return false;
       }
-      return true; // Allow other keys through
+
+      // Global shortcuts - dispatch to window so useKeyboardShortcuts handles them
+      // Use toLowerCase() for case-insensitive matching (key can be 'W' or 'w' depending on shift/OS)
+      const key = event.key.toLowerCase();
+      const isGlobalShortcut = (
+        (isMod && key === 'q') ||                                // Ctrl+Q
+        (isMod && event.key === 'Tab') ||                        // Ctrl+Tab
+        (isMod && key === 'w') ||                                // Ctrl+W / Ctrl+Shift+W
+        (isMod && key === 'n') ||                                // Ctrl+N
+        (isMod && key === 'g')                                   // Ctrl+G / Ctrl+Shift+G
+      );
+
+      if (isGlobalShortcut && event.type === 'keydown') {
+        window.dispatchEvent(new KeyboardEvent('keydown', {
+          key: event.key,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+          bubbles: true,
+        }));
+        return false;
+      }
+
+      return true;
     });
 
     // Handle user input

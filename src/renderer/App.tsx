@@ -47,6 +47,8 @@ const App: React.FC = () => {
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
   const [focusedItemType, setFocusedItemType] = useState<'group' | 'session' | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [isResizing, setIsResizing] = useState(false);
 
   const GROUP_COLORS = [
     '#e06c75', '#98c379', '#e5c07b', '#61afef', '#c678dd', '#56b6c2',
@@ -287,7 +289,10 @@ const App: React.FC = () => {
     const currentIndex = sessions.findIndex(s => s.id === activeSessionId);
     const nextIndex = (currentIndex + 1) % sessions.length;
     if (sessions[nextIndex]) {
-      setActiveSessionId(sessions[nextIndex].id);
+      const nextId = sessions[nextIndex].id;
+      setActiveSessionId(nextId);
+      setFocusedItemId(nextId);
+      setFocusedItemType('session');
     }
   }, [sessions, activeSessionId, setActiveSessionId]);
 
@@ -295,7 +300,10 @@ const App: React.FC = () => {
     const currentIndex = sessions.findIndex(s => s.id === activeSessionId);
     const prevIndex = currentIndex <= 0 ? sessions.length - 1 : currentIndex - 1;
     if (sessions[prevIndex]) {
-      setActiveSessionId(sessions[prevIndex].id);
+      const prevId = sessions[prevIndex].id;
+      setActiveSessionId(prevId);
+      setFocusedItemId(prevId);
+      setFocusedItemType('session');
     }
   }, [sessions, activeSessionId, setActiveSessionId]);
 
@@ -304,7 +312,10 @@ const App: React.FC = () => {
     if (waitingSessions.length > 0) {
       const currentIndex = waitingSessions.findIndex(s => s.id === activeSessionId);
       const nextIndex = (currentIndex + 1) % waitingSessions.length;
-      setActiveSessionId(waitingSessions[nextIndex].id);
+      const nextId = waitingSessions[nextIndex].id;
+      setActiveSessionId(nextId);
+      setFocusedItemId(nextId);
+      setFocusedItemType('session');
     }
   }, [sessions, activeSessionId, setActiveSessionId]);
 
@@ -355,6 +366,18 @@ const App: React.FC = () => {
     }
   }, [focusedItemId, navItems]);
 
+  // Click handlers that also update focus state
+  const handleSessionClick = useCallback((sessionId: string) => {
+    setActiveSessionId(sessionId);
+    setFocusedItemId(sessionId);
+    setFocusedItemType('session');
+  }, [setActiveSessionId]);
+
+  const handleGroupHeaderClick = useCallback((groupId: string) => {
+    setFocusedItemId(groupId);
+    setFocusedItemType('group');
+  }, []);
+
   const handleNavigateUp = useCallback(() => {
     if (!sidebarFocused) return;
     const currentIndex = navItems.findIndex(item => item.id === focusedItemId);
@@ -393,8 +416,15 @@ const App: React.FC = () => {
       if (group && group.collapsed) {
         toggleCollapse(focusedItemId);
       }
+    } else if (focusedItemType === 'session') {
+      // Right arrow on session = select it (same as Enter)
+      setActiveSessionId(focusedItemId);
+      setSidebarFocused(false);
+      setTimeout(() => {
+        window.dispatchEvent(new Event('focus-terminal'));
+      }, 50);
     }
-  }, [sidebarFocused, focusedItemId, focusedItemType, groups, toggleCollapse]);
+  }, [sidebarFocused, focusedItemId, focusedItemType, groups, toggleCollapse, setActiveSessionId]);
 
   const handleSelect = useCallback(() => {
     if (!sidebarFocused || !focusedItemId) return;
@@ -403,6 +433,10 @@ const App: React.FC = () => {
     } else if (focusedItemType === 'session') {
       setActiveSessionId(focusedItemId);
       setSidebarFocused(false);
+      // Focus the terminal after a short delay to let it become visible
+      setTimeout(() => {
+        window.dispatchEvent(new Event('focus-terminal'));
+      }, 50);
     }
   }, [sidebarFocused, focusedItemId, focusedItemType, toggleCollapse, setActiveSessionId]);
 
@@ -481,6 +515,33 @@ const App: React.FC = () => {
     return () => cleanups.forEach(cleanup => cleanup());
   }, [handleKeyboardNewSession, handleCloseSession, handleNextSession, handlePrevSession, handleNextWaiting, handleSessionSelect]);
 
+  // Sidebar resize handlers
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.min(Math.max(180, e.clientX), 500);
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
   if (isLoading) {
     return (
       <div className="app loading">
@@ -492,7 +553,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="app">
+    <div className="app" style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}>
       <aside
         className={`sidebar ${sidebarFocused ? 'focused' : ''}`}
         ref={sidebarRef}
@@ -505,6 +566,10 @@ const App: React.FC = () => {
           }
         }}
       >
+        <div
+          className={`sidebar-resize-handle ${isResizing ? 'resizing' : ''}`}
+          onMouseDown={handleResizeStart}
+        />
         <div className="sidebar-header">
           <h2>Groups</h2>
           <button
@@ -529,6 +594,7 @@ const App: React.FC = () => {
             >
               <div
                 className={`group-header ${focusedItemType === 'group' && focusedItemId === group.id ? 'item-focused' : ''}`}
+                onClick={() => handleGroupHeaderClick(group.id)}
                 onContextMenu={(e) => handleGroupContextMenu(e, group.id, group.name)}
               >
                 <button
@@ -619,7 +685,7 @@ const App: React.FC = () => {
                   <div
                     key={session.id}
                     className={`session ${session.id === activeSessionId ? 'active' : ''} ${focusedItemType === 'session' && focusedItemId === session.id ? 'item-focused' : ''} ${draggedItem?.type === 'session' && draggedItem.id === session.id ? 'dragging' : ''} ${dropTarget?.type === 'session' && dropTarget.id === session.id ? `drop-${dropTarget.position}` : ''}`}
-                    onClick={() => setActiveSessionId(session.id)}
+                    onClick={() => handleSessionClick(session.id)}
                     onContextMenu={(e) => handleSessionContextMenu(e, session.id, session.name)}
                     draggable
                     onDragStart={(e) => handleSessionDragStart(e, session.id, group.id)}
@@ -686,6 +752,7 @@ const App: React.FC = () => {
               >
                 <div
                   className={`group-header ${focusedItemType === 'group' && focusedItemId === subGroup.id ? 'item-focused' : ''}`}
+                  onClick={() => handleGroupHeaderClick(subGroup.id)}
                   onContextMenu={(e) => handleGroupContextMenu(e, subGroup.id, subGroup.name)}
                 >
                   <button
@@ -776,7 +843,7 @@ const App: React.FC = () => {
                     <div
                       key={session.id}
                       className={`session ${session.id === activeSessionId ? 'active' : ''} ${focusedItemType === 'session' && focusedItemId === session.id ? 'item-focused' : ''} ${draggedItem?.type === 'session' && draggedItem.id === session.id ? 'dragging' : ''} ${dropTarget?.type === 'session' && dropTarget.id === session.id ? `drop-${dropTarget.position}` : ''}`}
-                      onClick={() => setActiveSessionId(session.id)}
+                      onClick={() => handleSessionClick(session.id)}
                       onContextMenu={(e) => handleSessionContextMenu(e, session.id, session.name)}
                       draggable
                       onDragStart={(e) => handleSessionDragStart(e, session.id, subGroup.id)}
@@ -856,6 +923,7 @@ const App: React.FC = () => {
                 cwd={session.workingDir}
                 launchClaude={session.shellType === 'claude'}
                 isStopped={session.state === 'stopped'}
+                isActive={session.id === activeSessionId}
                 onStart={() => updateSession(session.id, { state: 'idle' })}
                 onError={() => updateSession(session.id, { state: 'error' })}
               />

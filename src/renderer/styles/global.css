@@ -14,7 +14,7 @@ body {
 
 .app {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: var(--sidebar-width, 260px) 1fr;
   grid-template-rows: 1fr 28px;
   height: 100vh;
 }
@@ -24,6 +24,25 @@ body {
   background: #252526;
   border-right: 1px solid #3c3c3c;
   padding: 12px;
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 10;
+}
+
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle.resizing {
+  background: #007acc;
 }
 
 .sidebar h2 {
