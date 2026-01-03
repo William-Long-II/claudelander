@@ -64,10 +64,35 @@ body {
   background: #1e1e1e;
   border-top: 1px solid #3c3c3c;
   display: flex;
+  justify-content: space-between;
   align-items: center;
   padding: 0 12px;
   font-size: 12px;
   color: #888;
+}
+
+.status-left {
+  display: flex;
+  gap: 16px;
+}
+
+.status-right {
+  display: flex;
+  gap: 16px;
+}
+
+.status-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-shortcut kbd {
+  background: #3c3c3c;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: 11px;
 }
 
 

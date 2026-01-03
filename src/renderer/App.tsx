@@ -399,6 +399,22 @@ const App: React.FC = () => {
     await createGroup(`Group ${groups.filter(g => !g.parentId).length + 1}`);
   }, [createGroup, groups]);
 
+  const getContextShortcuts = useCallback(() => {
+    if (sidebarFocused) {
+      return [
+        { key: '↑↓', label: 'Navigate' },
+        { key: 'Enter', label: 'Select' },
+        { key: '←→', label: 'Collapse' },
+        { key: 'Ctrl+G', label: 'New Group' },
+      ];
+    }
+    return [
+      { key: 'Ctrl+Q', label: 'Sidebar' },
+      { key: 'Ctrl+Tab', label: 'Next' },
+      { key: 'Ctrl+W', label: 'Close' },
+    ];
+  }, [sidebarFocused]);
+
   const handleNewSubGroup = useCallback(async () => {
     if (focusedItemType === 'group' && focusedItemId) {
       const group = groups.find(g => g.id === focusedItemId);
@@ -849,11 +865,20 @@ const App: React.FC = () => {
       </main>
 
       <footer className="status-bar">
-        <span className="status-item waiting">* {counts.waiting} waiting</span>
-        <span className="status-item working">o {counts.working} working</span>
-        <span className="status-item idle">o {counts.idle} idle</span>
-        <span className="status-item stopped">- {counts.stopped} stopped</span>
-        <span className="status-item error">! {counts.error} errors</span>
+        <div className="status-left">
+          <span className="status-item waiting">* {counts.waiting} waiting</span>
+          <span className="status-item working">o {counts.working} working</span>
+          <span className="status-item idle">o {counts.idle} idle</span>
+          <span className="status-item stopped">- {counts.stopped} stopped</span>
+          <span className="status-item error">! {counts.error} errors</span>
+        </div>
+        <div className="status-right">
+          {getContextShortcuts().map((shortcut, i) => (
+            <span key={i} className="status-shortcut">
+              <kbd>{shortcut.key}</kbd> {shortcut.label}
+            </span>
+          ))}
+        </div>
       </footer>
 
       {contextMenu && (
