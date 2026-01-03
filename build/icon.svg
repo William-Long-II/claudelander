@@ -46,7 +46,7 @@
   <circle cx="156" cy="172" r="5" fill="#e5c07b"/>
   <circle cx="172" cy="172" r="5" fill="#98c379"/>
 
-  <!-- Highlander sword (prominent, vertical) -->
+  <!-- App logo sword element -->
   <g filter="url(#shadow)">
     <!-- Blade -->
     <polygon points="256,48 270,100 268,280 256,300 244,280 242,100" fill="url(#swordGrad)"/>

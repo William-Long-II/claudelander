@@ -2,53 +2,47 @@
 
 <div align="center">
 
-<img src="docs/assets/highlander-hero.png" alt="Highlander" width="300">
-
-### *"I am ClaudeLander, born in the silicon valleys of Anthropic..."*
-
 [![Release](https://img.shields.io/github/v/release/William-Long-II/claudelander?style=for-the-badge&color=gold)](https://github.com/William-Long-II/claudelander/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=for-the-badge)]()
 
 ---
 
-## ⚔️ THERE CAN BE ONLY ONE ⚔️
+## Unified Session Management
 
-*...session manager.*
+*A cross-platform Claude Code session manager*
 
 </div>
 
 ---
 
-## The Legend
+## Overview
 
-For centuries, developers have battled the chaos of scattered terminal sessions, the confusion of lost contexts, the eternal struggle of managing multiple Claude Code instances.
-
-**ClaudeLander** unites your sessions under one banner. Each terminal a sword, each prompt a battle cry.
+Managing multiple Claude Code terminal sessions across different projects can be challenging. **ClaudeLander** provides a unified interface to organize, monitor, and manage all your Claude Code sessions in one place.
 
 ## Features
 
-### 🗡️ **Unified Command**
-All your Claude Code sessions in one immortal application. No more hunting through terminal windows.
+### **Session Management**
+All your Claude Code sessions in one application. No more hunting through terminal windows.
 
-### 👁️ **The Quickening** (Status Detection)
+### **Real-Time Status Detection**
 See at a glance which sessions are:
-- **⚡ Waiting** - Claude awaits your command
-- **🔵 Working** - Processing your request
-- **⚪ Idle** - Shell ready
-- **🔴 Error** - Something went wrong
-- **⚫ Stopped** - Session ended
+- **Waiting** - Claude awaits your command
+- **Working** - Processing your request
+- **Idle** - Shell ready
+- **Error** - Something went wrong
+- **Stopped** - Session ended
 
-### 🏰 **Highland Groups**
-Organize sessions into groups by project, client, or battle formation. Color-code your armies.
+### **Session Groups**
+Organize sessions into groups by project, client, or workflow. Color-code for quick identification.
 
-### 💾 **Persistent Memory**
-Sessions survive app restarts. Your context is immortal.
+### **Persistent Sessions**
+Sessions survive app restarts. Your context is preserved.
 
-### 🔄 **Auto-Update**
-New versions download automatically. The Quickening continues.
+### **Auto-Update**
+New versions download automatically.
 
-### 🖥️ **Cross-Platform Dominion**
+### **Cross-Platform Support**
 - Windows (native + WSL)
 - macOS (Intel + Apple Silicon)
 - Linux (AppImage + .deb)
@@ -116,15 +110,15 @@ npm run dist:win     # Windows
 
 | Phase | Status | Features |
 |-------|--------|----------|
-| **1 (MVP)** | ✅ Complete | Multi-session management, state detection, groups, persistence, auto-update |
-| **2** | 🔮 Future | E2E encrypted session sharing (`SYCLX-` codes) |
-| **3** | 🔮 Future | Teams, mobile companion, AI session summaries |
+| **1 (MVP)** | Complete | Multi-session management, state detection, groups, persistence, auto-update |
+| **2** | Future | E2E encrypted session sharing (`SYCLX-` codes) |
+| **3** | Future | Teams, mobile companion, AI session summaries |
 
 ---
 
 ## Contributing
 
-The clan welcomes new warriors. Feel free to open issues or submit PRs.
+Contributions are welcome! Feel free to open issues or submit PRs.
 
 ---
 
@@ -132,13 +126,9 @@ The clan welcomes new warriors. Feel free to open issues or submit PRs.
 
 Created by **Will Long II** and **Claude** (Anthropic)
 
-*"In the end, there can be only one... session manager."*
-
 ---
 
 <div align="center">
-
-### ⚔️ THE QUICKENING AWAITS ⚔️
 
 **[Download Now](https://github.com/William-Long-II/claudelander/releases)**
 

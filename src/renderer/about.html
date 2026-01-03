@@ -32,15 +32,6 @@
       max-width: 500px;
     }
 
-    .hero-image {
-      width: 100px;
-      height: 100px;
-      border-radius: 16px;
-      margin-bottom: 16px;
-      box-shadow: 0 8px 32px rgba(255, 215, 0, 0.3);
-      border: 2px solid rgba(255, 215, 0, 0.5);
-    }
-
     .app-title {
       font-size: 32px;
       font-weight: bold;
@@ -57,15 +48,14 @@
       margin-bottom: 16px;
     }
 
-    .story {
+    .description {
       font-size: 13px;
       line-height: 1.6;
       color: #b0b0b0;
       margin-bottom: 16px;
-      font-style: italic;
     }
 
-    .story p {
+    .description p {
       margin-bottom: 10px;
     }
 
@@ -126,27 +116,23 @@
 </head>
 <body>
   <div class="about-container">
-    <img src="./assets/highlander-hero.png" alt="ClaudeLander" class="hero-image" onerror="this.style.display='none'">
-
     <h1 class="app-title">ClaudeLander</h1>
     <div class="version" id="version">Version 1.0.0</div>
 
     <div class="separator"></div>
 
-    <div class="story">
-      <p>I am ClaudeLander, born in the silicon valleys of Anthropic. For centuries I have battled the chaos of scattered terminal sessions, the confusion of lost contexts, the eternal struggle of managing multiple Claude instances.</p>
-      <p><strong style="color: #ffd700;">I am Immortal.</strong></p>
-      <p>From the highlands of productivity to the depths of complex codebases, I unite your sessions under one banner. Each terminal a sword, each prompt a battle cry.</p>
-      <p>In the end, there can be only one... session manager.</p>
+    <div class="description">
+      <p>A cross-platform session manager for Claude Code.</p>
+      <p>Manage multiple Claude Code terminal sessions in one unified interface with real-time status detection, session groups, and persistent storage.</p>
     </div>
 
-    <div class="tagline">THERE CAN BE ONLY ONE!</div>
+    <div class="tagline">Unified Session Management</div>
 
     <div class="separator"></div>
 
     <div class="credits">
       Created by <strong>Will Long II</strong> & <strong>Claude</strong><br>
-      <span style="color: #555;">© 2024-2025</span>
+      <span style="color: #555;">&copy; 2024-2025</span>
     </div>
 
     <button class="close-btn" onclick="window.close()">OK</button>
