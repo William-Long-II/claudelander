@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import Terminal from './components/Terminal';
 import ContextMenu, { MenuItem } from './components/ContextMenu';
 import { useSessions } from './store/sessions';
@@ -40,6 +40,12 @@ const App: React.FC = () => {
     id: string;
     position: 'before' | 'after';
   } | null>(null);
+
+  // Focus tracking state for keyboard navigation
+  const [sidebarFocused, setSidebarFocused] = useState(false);
+  const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
+  const [focusedItemType, setFocusedItemType] = useState<'group' | 'session' | null>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
 
   const GROUP_COLORS = [
     '#e06c75', '#98c379', '#e5c07b', '#61afef', '#c678dd', '#56b6c2',
@@ -346,7 +352,18 @@ const App: React.FC = () => {
 
   return (
     <div className="app">
-      <aside className="sidebar">
+      <aside
+        className={`sidebar ${sidebarFocused ? 'focused' : ''}`}
+        ref={sidebarRef}
+        tabIndex={0}
+        onFocus={() => setSidebarFocused(true)}
+        onBlur={(e) => {
+          // Only blur if focus moved outside sidebar
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setSidebarFocused(false);
+          }
+        }}
+      >
         <div className="sidebar-header">
           <h2>Groups</h2>
           <button
@@ -370,7 +387,7 @@ const App: React.FC = () => {
               onDrop={(e) => handleGroupDrop(e, group.id)}
             >
               <div
-                className="group-header"
+                className={`group-header ${focusedItemType === 'group' && focusedItemId === group.id ? 'item-focused' : ''}`}
                 onContextMenu={(e) => handleGroupContextMenu(e, group.id, group.name)}
               >
                 <button
@@ -460,7 +477,7 @@ const App: React.FC = () => {
                 {getSessionsByGroup(group.id).sort((a, b) => a.order - b.order).map(session => (
                   <div
                     key={session.id}
-                    className={`session ${session.id === activeSessionId ? 'active' : ''} ${draggedItem?.type === 'session' && draggedItem.id === session.id ? 'dragging' : ''} ${dropTarget?.type === 'session' && dropTarget.id === session.id ? `drop-${dropTarget.position}` : ''}`}
+                    className={`session ${session.id === activeSessionId ? 'active' : ''} ${focusedItemType === 'session' && focusedItemId === session.id ? 'item-focused' : ''} ${draggedItem?.type === 'session' && draggedItem.id === session.id ? 'dragging' : ''} ${dropTarget?.type === 'session' && dropTarget.id === session.id ? `drop-${dropTarget.position}` : ''}`}
                     onClick={() => setActiveSessionId(session.id)}
                     onContextMenu={(e) => handleSessionContextMenu(e, session.id, session.name)}
                     draggable
@@ -530,7 +547,7 @@ const App: React.FC = () => {
                 onDragEnd={handleDragEnd}
               >
                 <div
-                  className="group-header"
+                  className={`group-header ${focusedItemType === 'group' && focusedItemId === subGroup.id ? 'item-focused' : ''}`}
                   onContextMenu={(e) => handleGroupContextMenu(e, subGroup.id, subGroup.name)}
                 >
                   <button
@@ -620,7 +637,7 @@ const App: React.FC = () => {
                   {getSessionsByGroup(subGroup.id).sort((a, b) => a.order - b.order).map(session => (
                     <div
                       key={session.id}
-                      className={`session ${session.id === activeSessionId ? 'active' : ''} ${draggedItem?.type === 'session' && draggedItem.id === session.id ? 'dragging' : ''} ${dropTarget?.type === 'session' && dropTarget.id === session.id ? `drop-${dropTarget.position}` : ''}`}
+                      className={`session ${session.id === activeSessionId ? 'active' : ''} ${focusedItemType === 'session' && focusedItemId === session.id ? 'item-focused' : ''} ${draggedItem?.type === 'session' && draggedItem.id === session.id ? 'dragging' : ''} ${dropTarget?.type === 'session' && dropTarget.id === session.id ? `drop-${dropTarget.position}` : ''}`}
                       onClick={() => setActiveSessionId(session.id)}
                       onContextMenu={(e) => handleSessionContextMenu(e, session.id, session.name)}
                       draggable

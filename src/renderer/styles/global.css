@@ -466,3 +466,14 @@ body {
   color: #666;
   margin-left: 4px;
 }
+
+/* Focus tracking styles for keyboard navigation */
+.sidebar:focus {
+  outline: none;
+}
+
+.sidebar.focused .group-header.item-focused,
+.sidebar.focused .session.item-focused {
+  outline: 1px dashed #007acc;
+  outline-offset: -1px;
+}
