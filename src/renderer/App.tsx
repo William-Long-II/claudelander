@@ -76,6 +76,14 @@ const App: React.FC = () => {
     await createGroup(`Group ${groups.length + 1}`);
   };
 
+  const handleCreateSubGroup = async (parentId: string) => {
+    const parent = groups.find(g => g.id === parentId);
+    if (!parent || parent.parentId) return; // Can't create sub-group of sub-group
+
+    const subGroups = getSubGroups(parentId);
+    await createGroup(`Sub-Group ${subGroups.length + 1}`, parentId);
+  };
+
   const handleStartEditGroup = (groupId: string, currentName: string) => {
     setEditingGroupId(groupId);
     setEditingGroupName(currentName);
@@ -133,6 +141,7 @@ const App: React.FC = () => {
         { label: 'New Session', onClick: () => handleNewSession(groupId) },
         { label: 'Rename', onClick: () => handleStartEditGroup(groupId, groupName) },
         { label: 'Set Working Directory', onClick: () => handleSetGroupDirectory(groupId) },
+        { label: 'New Sub-Group', onClick: () => handleCreateSubGroup(groupId), disabled: !!groups.find(g => g.id === groupId)?.parentId },
         { label: 'separator', onClick: () => {}, separator: true },
         {
           label: 'Delete Group',
@@ -349,165 +358,328 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        {groups.map(group => (
-          <div
-            key={group.id}
-            className={`group ${draggedItem?.type === 'group' && draggedItem.id === group.id ? 'dragging' : ''} ${dropTarget?.type === 'group' && dropTarget.id === group.id ? `drop-${dropTarget.position}` : ''}`}
-            draggable
-            onDragStart={(e) => handleGroupDragStart(e, group.id)}
-            onDragEnd={handleDragEnd}
-            onDragOver={(e) => handleGroupDragOver(e, group.id)}
-            onDrop={(e) => handleGroupDrop(e, group.id)}
-          >
+        {getTopLevelGroups().map(group => (
+          <div key={group.id} className="group-container">
+            {/* Render main group */}
             <div
-              className="group-header"
-              onContextMenu={(e) => handleGroupContextMenu(e, group.id, group.name)}
+              className={`group ${draggedItem?.type === 'group' && draggedItem.id === group.id ? 'dragging' : ''} ${dropTarget?.type === 'group' && dropTarget.id === group.id ? `drop-${dropTarget.position}` : ''}`}
+              draggable
+              onDragStart={(e) => handleGroupDragStart(e, group.id)}
+              onDragEnd={handleDragEnd}
+              onDragOver={(e) => handleGroupDragOver(e, group.id)}
+              onDrop={(e) => handleGroupDrop(e, group.id)}
             >
-              <button
-                className="group-color"
-                style={{ background: group.color }}
-                onClick={() => setColorPickerGroupId(colorPickerGroupId === group.id ? null : group.id)}
-                title="Change color"
-              />
-              <button
-                className="group-chevron"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleCollapse(group.id);
-                }}
-                title={group.collapsed ? 'Expand' : 'Collapse'}
-              >
-                {group.collapsed ? '▶' : '▼'}
-              </button>
-              {colorPickerGroupId === group.id && (
-                <div className="color-picker">
-                  {GROUP_COLORS.map(color => (
-                    <button
-                      key={color}
-                      className={`color-option ${color === group.color ? 'selected' : ''}`}
-                      style={{ background: color }}
-                      onClick={() => handleColorSelect(group.id, color)}
-                    />
-                  ))}
-                </div>
-              )}
-              {editingGroupId === group.id ? (
-                <input
-                  className="group-name-input"
-                  value={editingGroupName}
-                  onChange={(e) => setEditingGroupName(e.target.value)}
-                  onBlur={handleFinishEditGroup}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleFinishEditGroup();
-                    if (e.key === 'Escape') {
-                      setEditingGroupId(null);
-                      setEditingGroupName('');
-                    }
-                  }}
-                  autoFocus
-                />
-              ) : (
-                <span
-                  className="group-name"
-                  onClick={() => handleStartEditGroup(group.id, group.name)}
-                  title={group.workingDir ? `Click to rename\nDir: ${group.workingDir}` : 'Click to rename'}
-                >
-                  {group.name}
-                  {group.workingDir && <span className="group-dir-indicator" title={group.workingDir}>[dir]</span>}
-                </span>
-              )}
-              <div className="group-actions">
-                <button
-                  className="group-folder"
-                  onClick={() => handleSetGroupDirectory(group.id)}
-                  title={group.workingDir || 'Set working directory'}
-                >
-                  ⌂
-                </button>
-                <button
-                  className="group-delete"
-                  onClick={() => handleDeleteGroup(group.id)}
-                  title={getSessionsByGroup(group.id).length > 0 ? "Close all sessions first" : "Delete group"}
-                  disabled={getSessionsByGroup(group.id).length > 0}
-                >
-                  ×
-                </button>
-              </div>
-              <button
-                className="icon-button small"
-                onClick={() => handleNewSession(group.id)}
-                title="New Session"
-              >
-                +
-              </button>
-            </div>
-            {!group.collapsed && (
               <div
-                className={`group-sessions ${dropTarget?.id === `group:${group.id}` ? 'drop-target' : ''}`}
-                onDragOver={(e) => handleGroupAreaDragOver(e, group.id)}
-                onDrop={(e) => handleGroupAreaDrop(e, group.id)}
+                className="group-header"
+                onContextMenu={(e) => handleGroupContextMenu(e, group.id, group.name)}
               >
-              {getSessionsByGroup(group.id).sort((a, b) => a.order - b.order).map(session => (
-                <div
-                  key={session.id}
-                  className={`session ${session.id === activeSessionId ? 'active' : ''} ${draggedItem?.type === 'session' && draggedItem.id === session.id ? 'dragging' : ''} ${dropTarget?.type === 'session' && dropTarget.id === session.id ? `drop-${dropTarget.position}` : ''}`}
-                  onClick={() => setActiveSessionId(session.id)}
-                  onContextMenu={(e) => handleSessionContextMenu(e, session.id, session.name)}
-                  draggable
-                  onDragStart={(e) => handleSessionDragStart(e, session.id, group.id)}
-                  onDragEnd={handleDragEnd}
-                  onDragOver={(e) => handleSessionDragOver(e, session.id, group.id)}
-                  onDrop={(e) => handleSessionDrop(e, session.id, group.id)}
+                <button
+                  className="group-chevron"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleCollapse(group.id);
+                  }}
+                  title={group.collapsed ? 'Expand' : 'Collapse'}
                 >
-                  <div className="session-info">
-                    {editingSessionId === session.id ? (
-                      <input
-                        className="session-name-input"
-                        value={editingSessionName}
-                        onChange={(e) => setEditingSessionName(e.target.value)}
-                        onBlur={handleFinishEditSession}
-                        onKeyDown={(e) => {
-                          e.stopPropagation();
-                          if (e.key === 'Enter') handleFinishEditSession();
-                          if (e.key === 'Escape') {
-                            setEditingSessionId(null);
-                            setEditingSessionName('');
-                          }
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        autoFocus
+                  {group.collapsed ? '▶' : '▼'}
+                </button>
+                <button
+                  className="group-color"
+                  style={{ background: group.color }}
+                  onClick={() => setColorPickerGroupId(colorPickerGroupId === group.id ? null : group.id)}
+                  title="Change color"
+                />
+                {colorPickerGroupId === group.id && (
+                  <div className="color-picker">
+                    {GROUP_COLORS.map(color => (
+                      <button
+                        key={color}
+                        className={`color-option ${color === group.color ? 'selected' : ''}`}
+                        style={{ background: color }}
+                        onClick={() => handleColorSelect(group.id, color)}
                       />
-                    ) : (
-                      <span
-                        className="session-name"
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          handleStartEditSession(session.id, session.name);
-                        }}
-                        title="Double-click to rename"
-                      >
-                        {session.name}
-                      </span>
-                    )}
-                    <span className="session-dir" title={session.workingDir}>
-                      {session.workingDir.split('/').pop() || session.workingDir}
-                    </span>
+                    ))}
                   </div>
-                  <span className={`status-pill ${session.state}`}>{session.state}</span>
-                  <button
-                    className="session-close"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveSession(session.id);
+                )}
+                {editingGroupId === group.id ? (
+                  <input
+                    className="group-name-input"
+                    value={editingGroupName}
+                    onChange={(e) => setEditingGroupName(e.target.value)}
+                    onBlur={handleFinishEditGroup}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleFinishEditGroup();
+                      if (e.key === 'Escape') {
+                        setEditingGroupId(null);
+                        setEditingGroupName('');
+                      }
                     }}
-                    title="Close session"
+                    autoFocus
+                  />
+                ) : (
+                  <span
+                    className="group-name"
+                    onClick={() => handleStartEditGroup(group.id, group.name)}
+                    title={group.workingDir ? `Click to rename\nDir: ${group.workingDir}` : 'Click to rename'}
+                  >
+                    {group.name}
+                    {group.workingDir && <span className="group-dir-indicator" title={group.workingDir}>[dir]</span>}
+                  </span>
+                )}
+                <div className="group-actions">
+                  <button
+                    className="group-folder"
+                    onClick={() => handleSetGroupDirectory(group.id)}
+                    title={group.workingDir || 'Set working directory'}
+                  >
+                    ⌂
+                  </button>
+                  <button
+                    className="group-delete"
+                    onClick={() => handleDeleteGroup(group.id)}
+                    title={getSessionsByGroup(group.id).length > 0 ? "Close all sessions first" : "Delete group"}
+                    disabled={getSessionsByGroup(group.id).length > 0}
                   >
                     ×
                   </button>
                 </div>
-                ))}
+                <button
+                  className="icon-button small"
+                  onClick={() => handleNewSession(group.id)}
+                  title="New Session"
+                >
+                  +
+                </button>
               </div>
-            )}
+              {!group.collapsed && (
+                <div
+                  className={`group-sessions ${dropTarget?.id === `group:${group.id}` ? 'drop-target' : ''}`}
+                  onDragOver={(e) => handleGroupAreaDragOver(e, group.id)}
+                  onDrop={(e) => handleGroupAreaDrop(e, group.id)}
+                >
+                {getSessionsByGroup(group.id).sort((a, b) => a.order - b.order).map(session => (
+                  <div
+                    key={session.id}
+                    className={`session ${session.id === activeSessionId ? 'active' : ''} ${draggedItem?.type === 'session' && draggedItem.id === session.id ? 'dragging' : ''} ${dropTarget?.type === 'session' && dropTarget.id === session.id ? `drop-${dropTarget.position}` : ''}`}
+                    onClick={() => setActiveSessionId(session.id)}
+                    onContextMenu={(e) => handleSessionContextMenu(e, session.id, session.name)}
+                    draggable
+                    onDragStart={(e) => handleSessionDragStart(e, session.id, group.id)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => handleSessionDragOver(e, session.id, group.id)}
+                    onDrop={(e) => handleSessionDrop(e, session.id, group.id)}
+                  >
+                    <div className="session-info">
+                      {editingSessionId === session.id ? (
+                        <input
+                          className="session-name-input"
+                          value={editingSessionName}
+                          onChange={(e) => setEditingSessionName(e.target.value)}
+                          onBlur={handleFinishEditSession}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === 'Enter') handleFinishEditSession();
+                            if (e.key === 'Escape') {
+                              setEditingSessionId(null);
+                              setEditingSessionName('');
+                            }
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          autoFocus
+                        />
+                      ) : (
+                        <span
+                          className="session-name"
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            handleStartEditSession(session.id, session.name);
+                          }}
+                          title="Double-click to rename"
+                        >
+                          {session.name}
+                        </span>
+                      )}
+                      <span className="session-dir" title={session.workingDir}>
+                        {session.workingDir.split('/').pop() || session.workingDir}
+                      </span>
+                    </div>
+                    <span className={`status-pill ${session.state}`}>{session.state}</span>
+                    <button
+                      className="session-close"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveSession(session.id);
+                      }}
+                      title="Close session"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Render sub-groups when parent not collapsed */}
+            {!group.collapsed && getSubGroups(group.id).map(subGroup => (
+              <div
+                key={subGroup.id}
+                className={`group sub-group ${draggedItem?.type === 'group' && draggedItem.id === subGroup.id ? 'dragging' : ''}`}
+                draggable
+                onDragStart={(e) => handleGroupDragStart(e, subGroup.id)}
+                onDragEnd={handleDragEnd}
+              >
+                <div
+                  className="group-header"
+                  onContextMenu={(e) => handleGroupContextMenu(e, subGroup.id, subGroup.name)}
+                >
+                  <button
+                    className="group-chevron"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleCollapse(subGroup.id);
+                    }}
+                    title={subGroup.collapsed ? 'Expand' : 'Collapse'}
+                  >
+                    {subGroup.collapsed ? '▶' : '▼'}
+                  </button>
+                  <button
+                    className="group-color sub-group-color"
+                    style={{ borderColor: subGroup.color }}
+                    onClick={() => setColorPickerGroupId(colorPickerGroupId === subGroup.id ? null : subGroup.id)}
+                    title="Change color"
+                  />
+                  {colorPickerGroupId === subGroup.id && (
+                    <div className="color-picker">
+                      {GROUP_COLORS.map(color => (
+                        <button
+                          key={color}
+                          className={`color-option ${color === subGroup.color ? 'selected' : ''}`}
+                          style={{ background: color }}
+                          onClick={() => handleColorSelect(subGroup.id, color)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {editingGroupId === subGroup.id ? (
+                    <input
+                      className="group-name-input"
+                      value={editingGroupName}
+                      onChange={(e) => setEditingGroupName(e.target.value)}
+                      onBlur={handleFinishEditGroup}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleFinishEditGroup();
+                        if (e.key === 'Escape') {
+                          setEditingGroupId(null);
+                          setEditingGroupName('');
+                        }
+                      }}
+                      autoFocus
+                    />
+                  ) : (
+                    <span
+                      className="group-name"
+                      onClick={() => handleStartEditGroup(subGroup.id, subGroup.name)}
+                      title={subGroup.workingDir ? `Click to rename\nDir: ${subGroup.workingDir}` : 'Click to rename'}
+                    >
+                      {subGroup.name}
+                      <span className="group-type-indicator">[sub]</span>
+                    </span>
+                  )}
+                  <div className="group-actions">
+                    <button
+                      className="group-folder"
+                      onClick={() => handleSetGroupDirectory(subGroup.id)}
+                      title={subGroup.workingDir || 'Set working directory'}
+                    >
+                      ⌂
+                    </button>
+                    <button
+                      className="group-delete"
+                      onClick={() => handleDeleteGroup(subGroup.id)}
+                      title={getSessionsByGroup(subGroup.id).length > 0 ? "Close all sessions first" : "Delete group"}
+                      disabled={getSessionsByGroup(subGroup.id).length > 0}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <button
+                    className="icon-button small"
+                    onClick={() => handleNewSession(subGroup.id)}
+                    title="New Session"
+                  >
+                    +
+                  </button>
+                </div>
+                {!subGroup.collapsed && (
+                  <div
+                    className={`group-sessions ${dropTarget?.id === `group:${subGroup.id}` ? 'drop-target' : ''}`}
+                    onDragOver={(e) => handleGroupAreaDragOver(e, subGroup.id)}
+                    onDrop={(e) => handleGroupAreaDrop(e, subGroup.id)}
+                  >
+                  {getSessionsByGroup(subGroup.id).sort((a, b) => a.order - b.order).map(session => (
+                    <div
+                      key={session.id}
+                      className={`session ${session.id === activeSessionId ? 'active' : ''} ${draggedItem?.type === 'session' && draggedItem.id === session.id ? 'dragging' : ''} ${dropTarget?.type === 'session' && dropTarget.id === session.id ? `drop-${dropTarget.position}` : ''}`}
+                      onClick={() => setActiveSessionId(session.id)}
+                      onContextMenu={(e) => handleSessionContextMenu(e, session.id, session.name)}
+                      draggable
+                      onDragStart={(e) => handleSessionDragStart(e, session.id, subGroup.id)}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={(e) => handleSessionDragOver(e, session.id, subGroup.id)}
+                      onDrop={(e) => handleSessionDrop(e, session.id, subGroup.id)}
+                    >
+                      <div className="session-info">
+                        {editingSessionId === session.id ? (
+                          <input
+                            className="session-name-input"
+                            value={editingSessionName}
+                            onChange={(e) => setEditingSessionName(e.target.value)}
+                            onBlur={handleFinishEditSession}
+                            onKeyDown={(e) => {
+                              e.stopPropagation();
+                              if (e.key === 'Enter') handleFinishEditSession();
+                              if (e.key === 'Escape') {
+                                setEditingSessionId(null);
+                                setEditingSessionName('');
+                              }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            className="session-name"
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              handleStartEditSession(session.id, session.name);
+                            }}
+                            title="Double-click to rename"
+                          >
+                            {session.name}
+                          </span>
+                        )}
+                        <span className="session-dir" title={session.workingDir}>
+                          {session.workingDir.split('/').pop() || session.workingDir}
+                        </span>
+                      </div>
+                      <span className={`status-pill ${session.state}`}>{session.state}</span>
+                      <button
+                        className="session-close"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveSession(session.id);
+                        }}
+                        title="Close session"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         ))}
       </aside>

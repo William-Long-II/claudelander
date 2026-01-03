@@ -442,3 +442,27 @@ body {
 .session:active {
   cursor: grabbing;
 }
+
+/* Sub-groups */
+.group-container {
+  margin-bottom: 8px;
+}
+
+.sub-group {
+  margin-left: 20px;
+  margin-bottom: 8px;
+}
+
+.sub-group-color {
+  width: 8px;
+  height: 8px;
+  background: transparent !important;
+  border: 1.5px solid;
+  border-radius: 50%;
+}
+
+.group-type-indicator {
+  font-size: 9px;
+  color: #666;
+  margin-left: 4px;
+}
