@@ -125,6 +125,21 @@ body {
   transform: scale(1.3);
 }
 
+.group-chevron {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.group-chevron:hover {
+  color: #d4d4d4;
+}
+
 .color-picker {
   position: absolute;
   top: 100%;

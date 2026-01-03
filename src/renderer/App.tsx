@@ -8,7 +8,18 @@ import './styles/global.css';
 import './styles/context-menu.css';
 
 const App: React.FC = () => {
-  const { groups, loading: groupsLoading, createGroup, updateGroup, removeGroup, reorderGroup } = useGroups();
+  const {
+    groups,
+    loading: groupsLoading,
+    createGroup,
+    updateGroup,
+    removeGroup,
+    reorderGroup,
+    toggleCollapse,
+    getTopLevelGroups,
+    getSubGroups,
+    getEffectiveWorkingDir,
+  } = useGroups();
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupName, setEditingGroupName] = useState('');
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -56,11 +67,10 @@ const App: React.FC = () => {
       console.error('Cannot create session: no group available');
       return;
     }
-    const group = groups.find(g => g.id === groupId);
-    const cwd = group?.workingDir || homedir;
+    const cwd = getEffectiveWorkingDir(groupId) || homedir;
     const count = getSessionsByGroup(groupId).length + 1;
     await createSession(groupId, `Session ${count}`, cwd, true); // launchClaude = true
-  }, [groups, getSessionsByGroup, createSession, homedir]);
+  }, [getEffectiveWorkingDir, getSessionsByGroup, createSession, homedir]);
 
   const handleCreateGroup = async () => {
     await createGroup(`Group ${groups.length + 1}`);
@@ -359,6 +369,16 @@ const App: React.FC = () => {
                 onClick={() => setColorPickerGroupId(colorPickerGroupId === group.id ? null : group.id)}
                 title="Change color"
               />
+              <button
+                className="group-chevron"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleCollapse(group.id);
+                }}
+                title={group.collapsed ? 'Expand' : 'Collapse'}
+              >
+                {group.collapsed ? '▶' : '▼'}
+              </button>
               {colorPickerGroupId === group.id && (
                 <div className="color-picker">
                   {GROUP_COLORS.map(color => (
@@ -421,11 +441,12 @@ const App: React.FC = () => {
                 +
               </button>
             </div>
-            <div
-              className={`group-sessions ${dropTarget?.id === `group:${group.id}` ? 'drop-target' : ''}`}
-              onDragOver={(e) => handleGroupAreaDragOver(e, group.id)}
-              onDrop={(e) => handleGroupAreaDrop(e, group.id)}
-            >
+            {!group.collapsed && (
+              <div
+                className={`group-sessions ${dropTarget?.id === `group:${group.id}` ? 'drop-target' : ''}`}
+                onDragOver={(e) => handleGroupAreaDragOver(e, group.id)}
+                onDrop={(e) => handleGroupAreaDrop(e, group.id)}
+              >
               {getSessionsByGroup(group.id).sort((a, b) => a.order - b.order).map(session => (
                 <div
                   key={session.id}
@@ -484,8 +505,9 @@ const App: React.FC = () => {
                     ×
                   </button>
                 </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </aside>
