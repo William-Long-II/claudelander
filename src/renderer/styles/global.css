@@ -46,11 +46,17 @@ body {
 }
 
 .terminal-wrapper {
+  display: flex;
+  flex-direction: column;
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
+}
+.terminal-wrapper .terminal-container {
+  flex: 1;
+  min-height: 0;
 }
 
 .status-bar {
@@ -476,4 +482,87 @@ body {
 .sidebar.focused .session.item-focused {
   outline: 1px dashed #007acc;
   outline-offset: -1px;
+}
+
+/* Terminal Header */
+.terminal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: #252526;
+  border-bottom: 1px solid #3c3c3c;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.header-state-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.header-state-dot.idle { background: #888; }
+.header-state-dot.working { background: #61afef; }
+.header-state-dot.waiting { background: #e5c07b; }
+.header-state-dot.error { background: #e06c75; }
+.header-state-dot.stopped { background: #666; }
+
+.header-name {
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.header-name:hover {
+  text-decoration: underline;
+}
+
+.header-name-input {
+  font-size: 13px;
+  font-weight: 500;
+  background: #3c3c3c;
+  border: 1px solid #007acc;
+  color: #d4d4d4;
+  padding: 2px 6px;
+  border-radius: 2px;
+  outline: none;
+}
+
+.header-path {
+  flex: 1;
+  color: #888;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.header-action {
+  background: none;
+  border: 1px solid #555;
+  color: #888;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-action:hover {
+  background: #3c3c3c;
+  color: #d4d4d4;
+}
+
+.header-action.danger:hover {
+  background: #4d2626;
+  color: #e06c75;
+  border-color: #e06c75;
 }

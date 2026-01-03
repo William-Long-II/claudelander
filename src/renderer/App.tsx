@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import Terminal from './components/Terminal';
+import TerminalHeader from './components/TerminalHeader';
 import ContextMenu, { MenuItem } from './components/ContextMenu';
 import { useSessions } from './store/sessions';
 import { useGroups } from './store/groups';
@@ -816,6 +817,13 @@ const App: React.FC = () => {
               className="terminal-wrapper"
               style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
             >
+              <TerminalHeader
+                session={session}
+                onRename={(name) => updateSession(session.id, { name })}
+                onRestart={() => updateSession(session.id, { state: 'idle' })}
+                onStop={() => updateSession(session.id, { state: 'stopped' })}
+                onClose={() => handleRemoveSession(session.id)}
+              />
               <Terminal
                 sessionId={session.id}
                 cwd={session.workingDir}
