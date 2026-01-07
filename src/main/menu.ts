@@ -25,6 +25,7 @@ export function showSettingsWindow(parentWindow: BrowserWindow): void {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
       preload: settingsPreloadPath,
     },
   });
@@ -62,6 +63,7 @@ function showAboutWindow(parentWindow: BrowserWindow): void {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
       preload: aboutPreloadPath,
     },
   });

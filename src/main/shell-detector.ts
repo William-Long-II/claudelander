@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
 import * as fs from 'fs';
 
 export interface ShellInfo {
@@ -46,20 +46,26 @@ function detectWindowsShell(): ShellInfo {
   // Check for WSL with available distros
   const distros = getWSLDistros();
   if (distros.length > 0) {
-    // Verify the distro actually works
-    try {
-      execSync(`wsl.exe -d "${distros[0]}" echo ok`, {
-        encoding: 'utf-8',
-        timeout: 5000,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      return {
-        shell: 'C:\\Windows\\System32\\wsl.exe',
-        args: ['-d', distros[0]], // Use first available distro
-        isWSL: true,
-      };
-    } catch {
-      // WSL distro doesn't work, fall through to PowerShell
+    const distroName = distros[0];
+    // Validate distro name to prevent injection (alphanumeric, hyphens, underscores only)
+    if (/^[\w-]+$/.test(distroName)) {
+      // Verify the distro actually works using spawn with argument array (prevents command injection)
+      try {
+        const result = spawnSync('wsl.exe', ['-d', distroName, 'echo', 'ok'], {
+          encoding: 'utf-8',
+          timeout: 5000,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        if (result.status === 0) {
+          return {
+            shell: 'C:\\Windows\\System32\\wsl.exe',
+            args: ['-d', distroName],
+            isWSL: true,
+          };
+        }
+      } catch {
+        // WSL distro doesn't work, fall through to PowerShell
+      }
     }
   }
 

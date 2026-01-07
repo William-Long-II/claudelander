@@ -12,37 +12,25 @@ export function useSharing() {
     isLoading: true,
   });
 
-  // Load initial auth state
+  // Load initial auth state from main process (tokens are stored securely there)
   useEffect(() => {
     const loadUser = async () => {
       try {
-        // Try to load saved token
-        const savedToken = localStorage.getItem('claudelander_auth_token');
-        if (savedToken) {
-          const user = await window.electronAPI.setAuthToken(savedToken);
-          if (user) {
-            setState({ user, isLoading: false });
-            return;
-          }
-        }
+        // Get current user from main process (auth state is restored from secure storage)
+        const user = await window.electronAPI.getUser();
+        setState({ user, isLoading: false });
       } catch (e) {
-        console.error('Failed to restore auth:', e);
+        console.error('Failed to get auth state:', e);
+        setState({ user: null, isLoading: false });
       }
-      setState({ user: null, isLoading: false });
     };
 
     loadUser();
 
-    // Listen for auth changes - store cleanup functions
+    // Listen for auth changes from main process
     const unsubscribeAuthChanged = window.electronAPI.onAuthChanged((data: any) => {
       setState({ user: data.user, isLoading: false });
-      if (data.token) {
-        try {
-          localStorage.setItem('claudelander_auth_token', data.token);
-        } catch (e) {
-          console.error('Failed to save auth token:', e);
-        }
-      }
+      // Token is now managed securely in main process - don't store in renderer
     });
 
     const unsubscribeAuthError = window.electronAPI.onAuthError((data: any) => {
@@ -63,11 +51,7 @@ export function useSharing() {
 
   const logout = useCallback(() => {
     window.electronAPI.logout();
-    try {
-      localStorage.removeItem('claudelander_auth_token');
-    } catch (e) {
-      console.error('Failed to remove auth token:', e);
-    }
+    // Token cleanup is handled in main process
     setState({ user: null, isLoading: false });
   }, []);
 

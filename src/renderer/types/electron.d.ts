@@ -53,7 +53,7 @@ export interface ElectronAPI {
   logout: () => Promise<void>;
   getUser: () => Promise<ShareUser | null>;
   setAuthToken: (token: string) => Promise<ShareUser | null>;
-  onAuthChanged: (callback: (data: { user: ShareUser; token?: string }) => void) => () => void;
+  onAuthChanged: (callback: (data: { user: ShareUser; token: string | null }) => void) => () => void;
   onAuthError: (callback: (data: { error: string }) => void) => () => void;
 
   // Sharing (host)
@@ -79,8 +79,8 @@ export interface ElectronAPI {
   onShareData: (callback: (data: { code: string; data: string }) => void) => () => void;
   onShareEnded: (callback: (data: { code: string; reason: string }) => void) => () => void;
 
-  // Shell
-  openExternal: (url: string) => Promise<void>;
+  // Shell (with URL validation - may reject disallowed URLs)
+  openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
 
   // Sound notifications
   testSound: (event: 'waiting' | 'error' | 'start' | 'complete') => Promise<void>;
