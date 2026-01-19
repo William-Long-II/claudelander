@@ -224,4 +224,41 @@ contextBridge.exposeInMainWorld('electronAPI', {
     desktopId: string | null;
     relayUrl: string;
   }> => ipcRenderer.invoke('api:getRemoteAccessStatus'),
+
+  // Orchestration
+  orchestrationCreateJob: (name: string, description?: string, config?: any) =>
+    ipcRenderer.invoke('orchestration:create-job', name, description, config),
+  orchestrationAddTasks: (jobId: string, tasks: Array<{ name: string; prompt: string }>) =>
+    ipcRenderer.invoke('orchestration:add-tasks', jobId, tasks),
+  orchestrationStartJob: (jobId: string) =>
+    ipcRenderer.invoke('orchestration:start-job', jobId),
+  orchestrationCancelJob: (jobId: string) =>
+    ipcRenderer.invoke('orchestration:cancel-job', jobId),
+  orchestrationGetJob: (jobId: string) =>
+    ipcRenderer.invoke('orchestration:get-job', jobId),
+  orchestrationGetJobs: () =>
+    ipcRenderer.invoke('orchestration:get-jobs'),
+  orchestrationDeleteJob: (jobId: string) =>
+    ipcRenderer.invoke('orchestration:delete-job', jobId),
+  orchestrationUpdateTaskResult: (taskId: string, result: string) =>
+    ipcRenderer.invoke('orchestration:update-task-result', taskId, result),
+  orchestrationUpdateTaskError: (taskId: string, error: string) =>
+    ipcRenderer.invoke('orchestration:update-task-error', taskId, error),
+  orchestrationAssignSession: (taskId: string, sessionId: string) =>
+    ipcRenderer.invoke('orchestration:assign-session', taskId, sessionId),
+  onOrchestrationUpdate: (callback: (jobs: any[]) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, jobs: any[]) => callback(jobs);
+    ipcRenderer.on('orchestration:update', listener);
+    return () => ipcRenderer.removeListener('orchestration:update', listener);
+  },
+  onOrchestrationStartTask: (callback: (data: { jobId: string; task: any }) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, data: { jobId: string; task: any }) => callback(data);
+    ipcRenderer.on('orchestration:start-task', listener);
+    return () => ipcRenderer.removeListener('orchestration:start-task', listener);
+  },
+  onOrchestrationJobCompleted: (callback: (data: any) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('orchestration:job-completed', listener);
+    return () => ipcRenderer.removeListener('orchestration:job-completed', listener);
+  },
 });

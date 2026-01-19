@@ -20,6 +20,31 @@ interface StateChangeEvent {
   timestamp: number;
 }
 
+interface OrchestrationTask {
+  id: string;
+  name: string;
+  prompt: string;
+  sessionId?: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  result?: string;
+  error?: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+interface OrchestrationJob {
+  id: string;
+  name: string;
+  description?: string;
+  tasks: OrchestrationTask[];
+  status: 'pending' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled';
+  createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  maxConcurrent: number;
+  aggregatedResult?: string;
+}
+
 export interface ElectronAPI {
   platform: string;
   homedir: string;
@@ -130,6 +155,31 @@ export interface ElectronAPI {
   }>;
   apiDisableRemoteAccess: () => Promise<{ success: boolean; error?: string }>;
   apiGetRemoteAccessStatus: () => Promise<RelayConnectionStatus>;
+
+  // Orchestration
+  orchestrationCreateJob: (name: string, description?: string, config?: {
+    maxConcurrent?: number;
+    timeoutMs?: number;
+    retryOnFail?: boolean;
+    aggregateResults?: boolean;
+  }) => Promise<OrchestrationJob>;
+  orchestrationAddTasks: (jobId: string, tasks: Array<{ name: string; prompt: string }>) => Promise<OrchestrationJob>;
+  orchestrationStartJob: (jobId: string) => Promise<OrchestrationJob>;
+  orchestrationCancelJob: (jobId: string) => Promise<OrchestrationJob>;
+  orchestrationGetJob: (jobId: string) => Promise<OrchestrationJob | undefined>;
+  orchestrationGetJobs: () => Promise<OrchestrationJob[]>;
+  orchestrationDeleteJob: (jobId: string) => Promise<boolean>;
+  orchestrationUpdateTaskResult: (taskId: string, result: string) => Promise<boolean>;
+  orchestrationUpdateTaskError: (taskId: string, error: string) => Promise<boolean>;
+  orchestrationAssignSession: (taskId: string, sessionId: string) => Promise<boolean>;
+  onOrchestrationUpdate: (callback: (jobs: OrchestrationJob[]) => void) => () => void;
+  onOrchestrationStartTask: (callback: (data: { jobId: string; task: OrchestrationTask }) => void) => () => void;
+  onOrchestrationJobCompleted: (callback: (data: {
+    jobId: string;
+    status: string;
+    completedCount: number;
+    failedCount: number;
+  }) => void) => () => void;
 }
 
 declare global {

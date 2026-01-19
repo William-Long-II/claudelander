@@ -18,6 +18,7 @@ import { teamsAuthService } from './teams/teams-auth';
 import { teamsNotifier } from './teams/teams-notifier';
 import log from 'electron-log';
 import { getApiServer } from './api';
+import { orchestrationManager } from './orchestration/orchestration-manager';
 
 // Use separate userData directory for development to avoid cache conflicts
 if (!app.isPackaged) {
@@ -294,6 +295,10 @@ function createWindow(): void {
 
   // Initialize sound manager
   soundManager.setMainWindow(mainWindow);
+
+  // Initialize orchestration manager
+  orchestrationManager.setMainWindow(mainWindow);
+  orchestrationManager.initialize();
 
   // Initialize tray manager
   trayManager.initialize(mainWindow);
@@ -856,5 +861,6 @@ app.on('before-quit', async () => {
 
   trayManager.destroy();
   stateMonitor?.stop();
+  orchestrationManager.destroy();
   closeDatabase();
 });

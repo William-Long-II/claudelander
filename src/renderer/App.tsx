@@ -9,6 +9,7 @@ import { NamePromptModal } from './components/NamePromptModal';
 import { SettingsModal } from './components/SettingsModal';
 import { NewItemChoice } from './components/NewItemChoice';
 import KanbanBoard from './components/KanbanBoard';
+import OrchestrationPanel from './components/OrchestrationPanel';
 import { useSessions } from './store/sessions';
 import { useGroups } from './store/groups';
 import { useSharing } from './store/sharing';
@@ -95,6 +96,9 @@ const App: React.FC = () => {
   });
   const [boardGroupFilter, setBoardGroupFilter] = useState<string | null>(null);
 
+  // Orchestration panel state
+  const [orchestrationOpen, setOrchestrationOpen] = useState(false);
+
   // Persist view mode
   useEffect(() => {
     localStorage.setItem('claudelander-view-mode', viewMode);
@@ -171,6 +175,17 @@ const App: React.FC = () => {
     await createSession(sessionPrompt.groupId, name, cwd, true); // launchClaude = true
     setSessionPrompt(null);
   }, [sessionPrompt, getEffectiveWorkingDir, createSession, homedir]);
+
+  // Create session for orchestration (returns session ID)
+  const handleOrchestrationCreateSession = useCallback(async (
+    groupId: string,
+    name: string,
+    _prompt?: string // Currently unused, will be used to send initial message
+  ): Promise<string> => {
+    const cwd = getEffectiveWorkingDir(groupId) || homedir;
+    const session = await createSession(groupId, name, cwd, true);
+    return session.id;
+  }, [getEffectiveWorkingDir, createSession, homedir]);
 
   // Show prompt for new group name
   const handleCreateGroup = () => {
@@ -790,6 +805,13 @@ const App: React.FC = () => {
             </div>
             <button
               className="icon-button"
+              onClick={() => setOrchestrationOpen(true)}
+              title="Parallel Orchestration"
+            >
+              ⚡
+            </button>
+            <button
+              className="icon-button"
               onClick={() => setSettingsOpen(true)}
               title="Settings"
             >
@@ -1405,6 +1427,14 @@ const App: React.FC = () => {
       <SettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+      />
+
+      {/* Orchestration panel */}
+      <OrchestrationPanel
+        isOpen={orchestrationOpen}
+        onClose={() => setOrchestrationOpen(false)}
+        onCreateSession={handleOrchestrationCreateSession}
+        defaultGroupId={groups[0]?.id || ''}
       />
     </div>
   );

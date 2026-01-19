@@ -1,0 +1,492 @@
+.orchestration-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.orchestration-panel {
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  width: 900px;
+  max-width: 95vw;
+  height: 700px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.orchestration-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #3c3c3c;
+  background: #1e1e1e;
+}
+
+.orchestration-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #d4d4d4;
+}
+
+.orchestration-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.orchestration-sidebar {
+  width: 250px;
+  border-right: 1px solid #3c3c3c;
+  background: #1e1e1e;
+  display: flex;
+  flex-direction: column;
+}
+
+.orchestration-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #3c3c3c;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #888;
+}
+
+.new-job-btn {
+  background: #007acc;
+  border: none;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.new-job-btn:hover {
+  background: #0069b3;
+}
+
+.jobs-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.job-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-bottom: 4px;
+}
+
+.job-item:hover {
+  background: #37373d;
+}
+
+.job-item.selected {
+  background: #094771;
+}
+
+.job-status-icon {
+  font-size: 12px;
+  width: 16px;
+  text-align: center;
+}
+
+.job-name {
+  flex: 1;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.job-task-count {
+  font-size: 11px;
+  color: #888;
+}
+
+.empty-message {
+  color: #666;
+  font-size: 13px;
+  text-align: center;
+  padding: 20px;
+  font-style: italic;
+}
+
+.orchestration-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* New Job Form */
+.new-job-form h3 {
+  margin: 0 0 20px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #888;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: #1e1e1e;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  color: #d4d4d4;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #007acc;
+}
+
+.form-group input[type="number"] {
+  width: 100px;
+}
+
+.tasks-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-form-row {
+  background: #1e1e1e;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  padding: 12px;
+  position: relative;
+}
+
+.task-name-input {
+  margin-bottom: 8px;
+}
+
+.task-prompt-input {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.remove-task-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.remove-task-btn:hover {
+  background: #4d2626;
+  color: #e06c75;
+}
+
+.add-task-btn {
+  background: transparent;
+  border: 1px dashed #3c3c3c;
+  color: #888;
+  padding: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.add-task-btn:hover {
+  border-color: #007acc;
+  color: #007acc;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+/* Job Details */
+.job-details {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.job-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.job-info h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.job-description {
+  color: #888;
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
+.job-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #666;
+}
+
+.job-status {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.job-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.task-list h4 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.task-item {
+  background: #1e1e1e;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.task-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.task-status-icon {
+  font-size: 12px;
+}
+
+.task-name {
+  flex: 1;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.task-status {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #888;
+}
+
+.task-prompt {
+  font-size: 13px;
+  color: #888;
+  white-space: pre-wrap;
+  margin-bottom: 8px;
+  padding: 8px;
+  background: #252526;
+  border-radius: 4px;
+}
+
+.task-result {
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(74, 222, 128, 0.1);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.task-result pre {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  font-family: 'Consolas', 'Monaco', monospace;
+  color: #98c379;
+}
+
+.task-error {
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(224, 108, 117, 0.1);
+  border-radius: 4px;
+  font-size: 12px;
+  color: #e06c75;
+}
+
+.aggregated-result {
+  background: #1e1e1e;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.aggregated-result h4 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: #888;
+}
+
+.aggregated-result pre {
+  white-space: pre-wrap;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  color: #d4d4d4;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Status colors */
+.status-pending {
+  color: #888;
+}
+
+.status-running {
+  color: #61afef;
+}
+
+.status-running .job-status-icon,
+.status-running .task-status-icon {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.status-completed {
+  color: #98c379;
+}
+
+.status-partial {
+  color: #e5c07b;
+}
+
+.status-failed {
+  color: #e06c75;
+}
+
+.status-cancelled {
+  color: #666;
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  color: #666;
+}
+
+.empty-state p {
+  font-size: 14px;
+}
+
+/* Buttons */
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn.primary {
+  background: #007acc;
+  color: #fff;
+}
+
+.btn.primary:hover {
+  background: #0069b3;
+}
+
+.btn.primary:disabled {
+  background: #555;
+  color: #888;
+  cursor: not-allowed;
+}
+
+.btn.secondary {
+  background: #3c3c3c;
+  color: #d4d4d4;
+}
+
+.btn.secondary:hover {
+  background: #4a4a4a;
+}
+
+.btn.danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+.btn.danger:hover {
+  background: #b91c1c;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.close-btn:hover {
+  color: #fff;
+}
