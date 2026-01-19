@@ -8,6 +8,7 @@ import { JoinSessionModal } from './components/JoinSessionModal';
 import { NamePromptModal } from './components/NamePromptModal';
 import { SettingsModal } from './components/SettingsModal';
 import { NewItemChoice } from './components/NewItemChoice';
+import KanbanBoard from './components/KanbanBoard';
 import { useSessions } from './store/sessions';
 import { useGroups } from './store/groups';
 import { useSharing } from './store/sharing';
@@ -87,6 +88,17 @@ const App: React.FC = () => {
   // New item choice menu state (for + button on groups)
   const [newItemChoice, setNewItemChoice] = useState<{ x: number; y: number; groupId: string } | null>(null);
 
+  // View mode state (list or board)
+  const [viewMode, setViewMode] = useState<'list' | 'board'>(() => {
+    const saved = localStorage.getItem('claudelander-view-mode');
+    return saved === 'board' ? 'board' : 'list';
+  });
+  const [boardGroupFilter, setBoardGroupFilter] = useState<string | null>(null);
+
+  // Persist view mode
+  useEffect(() => {
+    localStorage.setItem('claudelander-view-mode', viewMode);
+  }, [viewMode]);
 
   const GROUP_COLORS = [
     '#e06c75', '#98c379', '#e5c07b', '#61afef', '#c678dd', '#56b6c2',
@@ -760,6 +772,22 @@ const App: React.FC = () => {
         <div className="sidebar-header">
           <h2>Groups</h2>
           <div className="sidebar-header-actions">
+            <div className="view-toggle">
+              <button
+                className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+                onClick={() => setViewMode('list')}
+                title="List View"
+              >
+                ☰
+              </button>
+              <button
+                className={`view-toggle-btn ${viewMode === 'board' ? 'active' : ''}`}
+                onClick={() => setViewMode('board')}
+                title="Board View"
+              >
+                ▦
+              </button>
+            </div>
             <button
               className="icon-button"
               onClick={() => setSettingsOpen(true)}
@@ -1181,82 +1209,94 @@ const App: React.FC = () => {
       </aside>
 
       <main className="main">
-        <div className="terminal-area">
-          {sessions.map(session => (
-            <div
-              key={session.id}
-              className="terminal-wrapper"
-              style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
-            >
-              <TerminalHeader
-                session={session}
-                isSharing={sharingSessions.has(session.id)}
-                onRename={(name) => updateSession(session.id, { name })}
-                onRestart={() => setRestartKeys(prev => ({ ...prev, [session.id]: (prev[session.id] || 0) + 1 }))}
-                onStop={() => updateSession(session.id, { state: 'stopped' })}
-                onClose={() => handleRemoveSession(session.id)}
-              />
-              <Terminal
-                sessionId={session.id}
-                cwd={session.workingDir}
-                launchClaude={session.shellType === 'claude'}
-                isStopped={session.state === 'stopped'}
-                restartKey={restartKeys[session.id] || 0}
-                isActive={session.id === activeSessionId}
-                onStart={() => updateSession(session.id, { state: 'idle' })}
-                onError={() => updateSession(session.id, { state: 'error' })}
-              />
-            </div>
-          ))}
-          {/* Remote sessions */}
-          {remoteSessions.map(rs => (
-            <div
-              key={`remote:${rs.code}`}
-              className="terminal-wrapper"
-              style={{ display: activeRemoteCode === rs.code ? 'flex' : 'none' }}
-            >
-              <div className="terminal-header">
-                <div className="terminal-header-left">
-                  <span className="terminal-title">
-                    {rs.sessionName} (from {rs.hostUsername})
-                  </span>
-                  <span className={`permission-badge ${rs.permission}`}>
-                    {rs.permission === 'read' ? 'Read-only' : 'Control'}
-                  </span>
-                </div>
-                <div className="terminal-header-right">
-                  <button
-                    className="header-btn"
-                    onClick={() => {
-                      window.electronAPI.leaveSession(rs.code);
-                      setRemoteSessions(prev => prev.filter(s => s.code !== rs.code));
-                      setActiveRemoteCode(null);
-                    }}
-                    title="Leave session"
-                  >
-                    Leave
-                  </button>
-                </div>
-              </div>
-              <RemoteTerminal
-                code={rs.code}
-                permission={rs.permission}
-                isActive={activeRemoteCode === rs.code}
-              />
-            </div>
-          ))}
-          {sessions.length === 0 && remoteSessions.length === 0 && (
-            <div className="no-session">
-              <p>No active session</p>
-              <button
-                onClick={() => groups[0] && handleNewSession(groups[0].id)}
-                disabled={!groups.length}
+        {viewMode === 'board' ? (
+          <KanbanBoard
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            onSessionClick={handleSessionClick}
+            onSessionRemove={handleRemoveSession}
+            sharingSessions={sharingSessions}
+            groups={groups}
+            selectedGroupId={boardGroupFilter}
+          />
+        ) : (
+          <div className="terminal-area">
+            {sessions.map(session => (
+              <div
+                key={session.id}
+                className="terminal-wrapper"
+                style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
               >
-                Create Session
-              </button>
-            </div>
-          )}
-        </div>
+                <TerminalHeader
+                  session={session}
+                  isSharing={sharingSessions.has(session.id)}
+                  onRename={(name) => updateSession(session.id, { name })}
+                  onRestart={() => setRestartKeys(prev => ({ ...prev, [session.id]: (prev[session.id] || 0) + 1 }))}
+                  onStop={() => updateSession(session.id, { state: 'stopped' })}
+                  onClose={() => handleRemoveSession(session.id)}
+                />
+                <Terminal
+                  sessionId={session.id}
+                  cwd={session.workingDir}
+                  launchClaude={session.shellType === 'claude'}
+                  isStopped={session.state === 'stopped'}
+                  restartKey={restartKeys[session.id] || 0}
+                  isActive={session.id === activeSessionId}
+                  onStart={() => updateSession(session.id, { state: 'idle' })}
+                  onError={() => updateSession(session.id, { state: 'error' })}
+                />
+              </div>
+            ))}
+            {/* Remote sessions */}
+            {remoteSessions.map(rs => (
+              <div
+                key={`remote:${rs.code}`}
+                className="terminal-wrapper"
+                style={{ display: activeRemoteCode === rs.code ? 'flex' : 'none' }}
+              >
+                <div className="terminal-header">
+                  <div className="terminal-header-left">
+                    <span className="terminal-title">
+                      {rs.sessionName} (from {rs.hostUsername})
+                    </span>
+                    <span className={`permission-badge ${rs.permission}`}>
+                      {rs.permission === 'read' ? 'Read-only' : 'Control'}
+                    </span>
+                  </div>
+                  <div className="terminal-header-right">
+                    <button
+                      className="header-btn"
+                      onClick={() => {
+                        window.electronAPI.leaveSession(rs.code);
+                        setRemoteSessions(prev => prev.filter(s => s.code !== rs.code));
+                        setActiveRemoteCode(null);
+                      }}
+                      title="Leave session"
+                    >
+                      Leave
+                    </button>
+                  </div>
+                </div>
+                <RemoteTerminal
+                  code={rs.code}
+                  permission={rs.permission}
+                  isActive={activeRemoteCode === rs.code}
+                />
+              </div>
+            ))}
+            {sessions.length === 0 && remoteSessions.length === 0 && (
+              <div className="no-session">
+                <p>No active session</p>
+                <button
+                  onClick={() => groups[0] && handleNewSession(groups[0].id)}
+                  disabled={!groups.length}
+                >
+                  Create Session
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       <footer className="status-bar">
