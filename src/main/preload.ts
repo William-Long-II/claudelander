@@ -261,4 +261,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('orchestration:job-completed', listener);
     return () => ipcRenderer.removeListener('orchestration:job-completed', listener);
   },
+
+  // Git Worktree
+  worktreeList: (repoPath: string) => ipcRenderer.invoke('worktree:list', repoPath),
+  worktreeCreate: (options: {
+    basePath: string;
+    branch: string;
+    createBranch: boolean;
+    baseBranch?: string;
+    worktreePath?: string;
+  }) => ipcRenderer.invoke('worktree:create', options),
+  worktreeRemove: (repoPath: string, worktreePath: string, force?: boolean) =>
+    ipcRenderer.invoke('worktree:remove', repoPath, worktreePath, force),
+  worktreePrune: (repoPath: string) => ipcRenderer.invoke('worktree:prune', repoPath),
+  worktreeLock: (repoPath: string, worktreePath: string, reason?: string) =>
+    ipcRenderer.invoke('worktree:lock', repoPath, worktreePath, reason),
+  worktreeUnlock: (repoPath: string, worktreePath: string) =>
+    ipcRenderer.invoke('worktree:unlock', repoPath, worktreePath),
+  worktreeBranches: (repoPath: string) => ipcRenderer.invoke('worktree:branches', repoPath),
+  worktreeIsGitRepo: (dirPath: string) => ipcRenderer.invoke('worktree:isGitRepo', dirPath),
+  worktreeGetRepoRoot: (dirPath: string) => ipcRenderer.invoke('worktree:getRepoRoot', dirPath),
+  worktreeCurrentBranch: (repoPath: string) => ipcRenderer.invoke('worktree:currentBranch', repoPath),
 });

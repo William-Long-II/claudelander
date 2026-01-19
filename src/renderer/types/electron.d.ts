@@ -45,6 +45,23 @@ interface OrchestrationJob {
   aggregatedResult?: string;
 }
 
+interface GitWorktree {
+  path: string;
+  branch: string;
+  commit: string;
+  isBare: boolean;
+  isMain: boolean;
+  isLocked: boolean;
+}
+
+interface WorktreeCreateOptions {
+  basePath: string;
+  branch: string;
+  createBranch: boolean;
+  baseBranch?: string;
+  worktreePath?: string;
+}
+
 export interface ElectronAPI {
   platform: string;
   homedir: string;
@@ -180,6 +197,18 @@ export interface ElectronAPI {
     completedCount: number;
     failedCount: number;
   }) => void) => () => void;
+
+  // Git Worktree
+  worktreeList: (repoPath: string) => Promise<GitWorktree[]>;
+  worktreeCreate: (options: WorktreeCreateOptions) => Promise<GitWorktree>;
+  worktreeRemove: (repoPath: string, worktreePath: string, force?: boolean) => Promise<void>;
+  worktreePrune: (repoPath: string) => Promise<void>;
+  worktreeLock: (repoPath: string, worktreePath: string, reason?: string) => Promise<void>;
+  worktreeUnlock: (repoPath: string, worktreePath: string) => Promise<void>;
+  worktreeBranches: (repoPath: string) => Promise<{ local: string[]; remote: string[] }>;
+  worktreeIsGitRepo: (dirPath: string) => Promise<boolean>;
+  worktreeGetRepoRoot: (dirPath: string) => Promise<string | null>;
+  worktreeCurrentBranch: (repoPath: string) => Promise<string>;
 }
 
 declare global {

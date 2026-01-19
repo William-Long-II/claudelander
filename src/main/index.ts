@@ -790,6 +790,55 @@ ipcMain.handle('api:getRemoteAccessStatus', () => {
   return apiServer.getRemoteAccessStatus();
 });
 
+// Git Worktree handlers
+import { worktreeManager } from './worktree/worktree-manager';
+
+ipcMain.handle('worktree:list', async (_event, repoPath: string) => {
+  return worktreeManager.listWorktrees(repoPath);
+});
+
+ipcMain.handle('worktree:create', async (_event, options: {
+  basePath: string;
+  branch: string;
+  createBranch: boolean;
+  baseBranch?: string;
+  worktreePath?: string;
+}) => {
+  return worktreeManager.createWorktree(options);
+});
+
+ipcMain.handle('worktree:remove', async (_event, repoPath: string, worktreePath: string, force: boolean = false) => {
+  return worktreeManager.removeWorktree(repoPath, worktreePath, force);
+});
+
+ipcMain.handle('worktree:prune', async (_event, repoPath: string) => {
+  return worktreeManager.pruneWorktrees(repoPath);
+});
+
+ipcMain.handle('worktree:lock', async (_event, repoPath: string, worktreePath: string, reason?: string) => {
+  return worktreeManager.lockWorktree(repoPath, worktreePath, reason);
+});
+
+ipcMain.handle('worktree:unlock', async (_event, repoPath: string, worktreePath: string) => {
+  return worktreeManager.unlockWorktree(repoPath, worktreePath);
+});
+
+ipcMain.handle('worktree:branches', async (_event, repoPath: string) => {
+  return worktreeManager.listBranches(repoPath);
+});
+
+ipcMain.handle('worktree:isGitRepo', async (_event, dirPath: string) => {
+  return worktreeManager.isGitRepo(dirPath);
+});
+
+ipcMain.handle('worktree:getRepoRoot', async (_event, dirPath: string) => {
+  return worktreeManager.getRepoRoot(dirPath);
+});
+
+ipcMain.handle('worktree:currentBranch', async (_event, repoPath: string) => {
+  return worktreeManager.getCurrentBranch(repoPath);
+});
+
 function getLocalAddresses(): string[] {
   const { networkInterfaces } = require('os');
   const addresses: string[] = [];
