@@ -19,6 +19,7 @@ import { teamsNotifier } from './teams/teams-notifier';
 import log from 'electron-log';
 import { getApiServer } from './api';
 import { orchestrationManager } from './orchestration/orchestration-manager';
+import { memoryManager } from './memory/memory-manager';
 
 // Use separate userData directory for development to avoid cache conflicts
 if (!app.isPackaged) {
@@ -299,6 +300,9 @@ function createWindow(): void {
   // Initialize orchestration manager
   orchestrationManager.setMainWindow(mainWindow);
   orchestrationManager.initialize();
+
+  // Initialize memory manager
+  memoryManager.initialize();
 
   // Initialize tray manager
   trayManager.initialize(mainWindow);

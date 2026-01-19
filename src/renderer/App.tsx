@@ -10,6 +10,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { NewItemChoice } from './components/NewItemChoice';
 import KanbanBoard from './components/KanbanBoard';
 import OrchestrationPanel from './components/OrchestrationPanel';
+import MemoryPanel from './components/MemoryPanel';
 import { useSessions } from './store/sessions';
 import { useGroups } from './store/groups';
 import { useSharing } from './store/sharing';
@@ -98,6 +99,9 @@ const App: React.FC = () => {
 
   // Orchestration panel state
   const [orchestrationOpen, setOrchestrationOpen] = useState(false);
+
+  // Memory panel state
+  const [memoryPanelSessionId, setMemoryPanelSessionId] = useState<string | null>(null);
 
   // Persist view mode
   useEffect(() => {
@@ -266,6 +270,7 @@ const App: React.FC = () => {
       y: e.clientY,
       items: [
         { label: 'Rename', onClick: () => handleStartEditSession(sessionId, sessionName) },
+        { label: 'Memory', onClick: () => setMemoryPanelSessionId(sessionId) },
         { label: 'Share Session', onClick: () => setShareModalSessionId(sessionId), disabled: !isAuthenticated },
         { label: 'separator', onClick: () => {}, separator: true },
         { label: 'Close Session', onClick: () => handleRemoveSession(sessionId), danger: true },
@@ -1436,6 +1441,16 @@ const App: React.FC = () => {
         onCreateSession={handleOrchestrationCreateSession}
         defaultGroupId={groups[0]?.id || ''}
       />
+
+      {/* Memory panel */}
+      {memoryPanelSessionId && (
+        <MemoryPanel
+          isOpen={true}
+          onClose={() => setMemoryPanelSessionId(null)}
+          sessionId={memoryPanelSessionId}
+          sessionName={sessions.find(s => s.id === memoryPanelSessionId)?.name || 'Session'}
+        />
+      )}
     </div>
   );
 };

@@ -282,4 +282,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
   worktreeIsGitRepo: (dirPath: string) => ipcRenderer.invoke('worktree:isGitRepo', dirPath),
   worktreeGetRepoRoot: (dirPath: string) => ipcRenderer.invoke('worktree:getRepoRoot', dirPath),
   worktreeCurrentBranch: (repoPath: string) => ipcRenderer.invoke('worktree:currentBranch', repoPath),
+
+  // Session Memory
+  memoryLoad: (sessionId: string) => ipcRenderer.invoke('memory:load', sessionId),
+  memoryAddEntry: (sessionId: string, entry: {
+    type: 'note' | 'decision' | 'learning' | 'context' | 'task';
+    content: string;
+    tags: string[];
+    pinned: boolean;
+  }) => ipcRenderer.invoke('memory:addEntry', sessionId, entry),
+  memoryUpdateEntry: (sessionId: string, entryId: string, updates: any) =>
+    ipcRenderer.invoke('memory:updateEntry', sessionId, entryId, updates),
+  memoryDeleteEntry: (sessionId: string, entryId: string) =>
+    ipcRenderer.invoke('memory:deleteEntry', sessionId, entryId),
+  memorySetInstructions: (sessionId: string, instructions: string) =>
+    ipcRenderer.invoke('memory:setInstructions', sessionId, instructions),
+  memoryGetEntries: (sessionId: string, type?: string) =>
+    ipcRenderer.invoke('memory:getEntries', sessionId, type),
+  memorySearch: (query: string, sessionIds?: string[]) =>
+    ipcRenderer.invoke('memory:search', query, sessionIds),
+  memoryDelete: (sessionId: string) => ipcRenderer.invoke('memory:delete', sessionId),
+  memoryExport: (sessionId: string) => ipcRenderer.invoke('memory:export', sessionId),
 });

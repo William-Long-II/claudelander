@@ -62,6 +62,24 @@ interface WorktreeCreateOptions {
   worktreePath?: string;
 }
 
+interface MemoryEntry {
+  id: string;
+  sessionId: string;
+  type: 'note' | 'decision' | 'learning' | 'context' | 'task';
+  content: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  pinned: boolean;
+}
+
+interface SessionMemory {
+  sessionId: string;
+  entries: MemoryEntry[];
+  customInstructions: string;
+  lastUpdated: string;
+}
+
 export interface ElectronAPI {
   platform: string;
   homedir: string;
@@ -209,6 +227,22 @@ export interface ElectronAPI {
   worktreeIsGitRepo: (dirPath: string) => Promise<boolean>;
   worktreeGetRepoRoot: (dirPath: string) => Promise<string | null>;
   worktreeCurrentBranch: (repoPath: string) => Promise<string>;
+
+  // Session Memory
+  memoryLoad: (sessionId: string) => Promise<SessionMemory>;
+  memoryAddEntry: (sessionId: string, entry: {
+    type: MemoryEntry['type'];
+    content: string;
+    tags: string[];
+    pinned: boolean;
+  }) => Promise<MemoryEntry>;
+  memoryUpdateEntry: (sessionId: string, entryId: string, updates: Partial<MemoryEntry>) => Promise<MemoryEntry | null>;
+  memoryDeleteEntry: (sessionId: string, entryId: string) => Promise<boolean>;
+  memorySetInstructions: (sessionId: string, instructions: string) => Promise<void>;
+  memoryGetEntries: (sessionId: string, type?: string) => Promise<MemoryEntry[]>;
+  memorySearch: (query: string, sessionIds?: string[]) => Promise<MemoryEntry[]>;
+  memoryDelete: (sessionId: string) => Promise<void>;
+  memoryExport: (sessionId: string) => Promise<string>;
 }
 
 declare global {
