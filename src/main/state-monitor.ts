@@ -1,12 +1,23 @@
 import * as net from 'net';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
-import { SessionState } from '../shared/types';
+import { SessionState, MemoryType } from '../shared/types';
 
 interface StateEvent {
   sessionId: string;
   state: SessionState;
   event: string;
+  timestamp: number;
+}
+
+interface MemoryEvent {
+  type: 'memory';
+  sessionId: string;
+  memory: {
+    type: MemoryType;
+    content: string;
+    source: 'claude';
+  };
   timestamp: number;
 }
 
@@ -44,14 +55,21 @@ class StateMonitor extends EventEmitter {
       socket.on('data', (data) => {
         try {
           const parsed = JSON.parse(data.toString().trim());
+
+          // Check if it's a memory event
+          if (this.isValidMemoryEvent(parsed)) {
+            this.emit('memoryEvent', parsed);
+            return;
+          }
+
           // Validate StateEvent structure
           if (this.isValidStateEvent(parsed)) {
             this.emit('stateChange', parsed);
           } else {
-            console.error('Invalid state event structure:', parsed);
+            console.error('Invalid event structure:', parsed);
           }
         } catch (e) {
-          console.error('Failed to parse state event:', e);
+          console.error('Failed to parse event:', e);
         }
       });
     });
@@ -82,6 +100,30 @@ class StateMonitor extends EventEmitter {
     );
   }
 
+  // Validate memory event structure
+  private isValidMemoryEvent(obj: unknown): obj is MemoryEvent {
+    if (
+      typeof obj !== 'object' ||
+      obj === null ||
+      (obj as any).type !== 'memory'
+    ) {
+      return false;
+    }
+
+    const memEvent = obj as MemoryEvent;
+    const validTypes: MemoryType[] = ['decision', 'error_fix', 'pattern', 'context', 'note'];
+
+    return (
+      typeof memEvent.sessionId === 'string' &&
+      typeof memEvent.timestamp === 'number' &&
+      typeof memEvent.memory === 'object' &&
+      memEvent.memory !== null &&
+      validTypes.includes(memEvent.memory.type) &&
+      typeof memEvent.memory.content === 'string' &&
+      memEvent.memory.source === 'claude'
+    );
+  }
+
   stop(): void {
     if (this.server) {
       this.server.close();
@@ -100,4 +142,4 @@ class StateMonitor extends EventEmitter {
   }
 }
 
-export { StateMonitor, StateEvent };
+export { StateMonitor, StateEvent, MemoryEvent };

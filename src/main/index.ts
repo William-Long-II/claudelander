@@ -5,13 +5,14 @@ import { getDatabase, closeDatabase } from './database';
 import * as groupsRepo from './repositories/groups';
 import * as sessionsRepo from './repositories/sessions';
 import * as prefsRepo from './repositories/preferences';
+import * as memoriesRepo from './repositories/memories';
 import { StateMonitor } from './state-monitor';
 import { createApplicationMenu } from './menu';
 import { initAutoUpdater, checkForUpdatesManual, downloadUpdate } from './auto-updater';
 import { notificationManager } from './notification-manager';
 import { trayManager } from './tray-manager';
 import { soundManager, SoundEvent } from './sound-manager';
-import { Group, Session } from '../shared/types';
+import { Group, Session, MemoryCreateInput, MemoryUpdateInput } from '../shared/types';
 import { authService } from './sharing/auth';
 import { shareManager } from './sharing/share-manager';
 import { teamsAuthService } from './teams/teams-auth';
@@ -344,6 +345,60 @@ function createWindow(): void {
     getApiServer().broadcastSessionState(event.sessionId, event.state, event.event);
   });
 
+  // PTY memory extraction forwarding
+  ptyManager.on('memoryExtracted', async ({ sessionId, memory }) => {
+    try {
+      // Look up session to get groupId
+      const sessions = sessionsRepo.getAllSessions();
+      const session = sessions.find(s => s.id === sessionId);
+      if (!session) return;
+
+      // Create the memory in database
+      const savedMemory = memoriesRepo.createMemory({
+        id: crypto.randomUUID(),
+        sessionId,
+        groupId: session.groupId,
+        type: memory.type,
+        content: memory.content,
+        source: 'auto',
+        tags: [],
+        pinned: false,
+      });
+
+      // Notify renderer
+      mainWindow?.webContents.send('memory:extracted', savedMemory);
+    } catch (error) {
+      console.error('Failed to save extracted memory:', error);
+    }
+  });
+
+  // State monitor memory events (from Claude hooks)
+  stateMonitor.on('memoryEvent', async (event: any) => {
+    try {
+      // Look up session to get groupId
+      const sessions = sessionsRepo.getAllSessions();
+      const session = sessions.find(s => s.id === event.sessionId);
+      if (!session) return;
+
+      // Create the memory in database
+      const savedMemory = memoriesRepo.createMemory({
+        id: crypto.randomUUID(),
+        sessionId: event.sessionId,
+        groupId: session.groupId,
+        type: event.memory.type,
+        content: event.memory.content,
+        source: 'claude',
+        tags: [],
+        pinned: false,
+      });
+
+      // Notify renderer
+      mainWindow?.webContents.send('memory:extracted', savedMemory);
+    } catch (error) {
+      console.error('Failed to save memory from Claude hook:', error);
+    }
+  });
+
   // Save window bounds on resize/move
   const saveWindowBounds = () => {
     if (!mainWindow) return;
@@ -467,6 +522,52 @@ ipcMain.handle('db:sessions:delete', async (_, id: string) => {
   }
   sessionsRepo.deleteSession(id);
   getApiServer().broadcastSessionsUpdated();
+});
+
+// Database IPC Handlers - Memories
+ipcMain.handle('db:memories:getBySession', async (_, sessionId: string) => {
+  return memoriesRepo.getMemoriesBySession(sessionId);
+});
+
+ipcMain.handle('db:memories:getByGroup', async (_, groupId: string) => {
+  return memoriesRepo.getMemoriesByGroup(groupId);
+});
+
+ipcMain.handle('db:memories:getPinned', async (_, groupId?: string) => {
+  return memoriesRepo.getPinnedMemories(groupId);
+});
+
+ipcMain.handle('db:memories:search', async (_, query: string, groupId?: string) => {
+  return memoriesRepo.searchMemories(query, groupId);
+});
+
+ipcMain.handle('db:memories:create', async (_, memory: MemoryCreateInput) => {
+  // Check for duplicates within time window
+  const existing = memoriesRepo.findSimilarMemory(memory.content, memory.groupId);
+  if (existing) {
+    return existing; // Return existing instead of creating duplicate
+  }
+  return memoriesRepo.createMemory({
+    ...memory,
+    tags: memory.tags || [],
+    pinned: memory.pinned || false,
+  });
+});
+
+ipcMain.handle('db:memories:update', async (_, id: string, updates: MemoryUpdateInput) => {
+  memoriesRepo.updateMemory(id, updates);
+});
+
+ipcMain.handle('db:memories:delete', async (_, id: string) => {
+  memoriesRepo.deleteMemory(id);
+});
+
+ipcMain.handle('db:memories:getForInjection', async (_, sessionId: string, groupId: string) => {
+  return memoriesRepo.getMemoriesForInjection(sessionId, groupId);
+});
+
+ipcMain.handle('db:memories:getById', async (_, id: string) => {
+  return memoriesRepo.getMemoryById(id);
 });
 
 // Preferences IPC Handlers

@@ -4,6 +4,7 @@ import { EventEmitter } from 'events';
 import { getClaudeCommand, getSocketPath } from './claude-launcher';
 import { detectShell, ShellInfo } from './shell-detector';
 import { getPreference } from './repositories/preferences';
+import { ExtractionBuffer, ExtractedMemory } from './memory/extraction';
 
 interface PtySession {
   id: string;
@@ -18,6 +19,7 @@ interface PtySession {
   workingDebounce: NodeJS.Timeout | null;
   recentOutputBytes: number;
   lastOutputTime: number;
+  extractionBuffer: ExtractionBuffer | null;  // Memory extraction buffer for Claude sessions
 }
 
 // Max scrollback buffer size (100KB should be plenty for recent terminal history)
@@ -124,6 +126,19 @@ class PtyManager extends EventEmitter {
         if (session.scrollbackBuffer.length > MAX_SCROLLBACK_SIZE) {
           session.scrollbackBuffer = session.scrollbackBuffer.slice(-MAX_SCROLLBACK_SIZE);
         }
+
+        // Process through extraction buffer for Claude sessions
+        if (session.extractionBuffer) {
+          const memories = session.extractionBuffer.append(data);
+          if (memories) {
+            for (const memory of memories) {
+              this.emit('memoryExtracted', {
+                sessionId: id,
+                memory,
+              });
+            }
+          }
+        }
       }
 
       this.emit('data', { id, data });
@@ -151,6 +166,7 @@ class PtyManager extends EventEmitter {
       workingDebounce: null,
       recentOutputBytes: 0,
       lastOutputTime: 0,
+      extractionBuffer: launchClaude ? new ExtractionBuffer() : null,
     });
   }
 
@@ -176,6 +192,16 @@ class PtyManager extends EventEmitter {
       }
       if (session.workingDebounce) {
         clearTimeout(session.workingDebounce);
+      }
+      // Flush extraction buffer before killing
+      if (session.extractionBuffer) {
+        const memories = session.extractionBuffer.flush();
+        for (const memory of memories) {
+          this.emit('memoryExtracted', {
+            sessionId: id,
+            memory,
+          });
+        }
       }
       session.pty.kill();
       this.sessions.delete(id);

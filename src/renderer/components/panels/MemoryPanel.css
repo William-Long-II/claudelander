@@ -1,0 +1,324 @@
+/* Memory Panel Container */
+.memory-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 12px;
+  gap: 12px;
+}
+
+/* Search */
+.memory-search {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.memory-search input {
+  width: 100%;
+  padding: 8px 32px 8px 12px;
+  background: var(--bg-tertiary, #2a2a2a);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 6px;
+  color: var(--text-primary, #fff);
+  font-size: 13px;
+}
+
+.memory-search input:focus {
+  outline: none;
+  border-color: var(--accent-color, #007acc);
+}
+
+.memory-search input::placeholder {
+  color: var(--text-tertiary, #666);
+}
+
+.search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 6px;
+}
+
+.search-clear:hover {
+  color: var(--text-primary, #fff);
+}
+
+/* Add Button */
+.memory-add-btn {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  background: var(--bg-tertiary, #2a2a2a);
+  border: 1px dashed var(--border-color, #444);
+  border-radius: 6px;
+  color: var(--text-secondary, #888);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.memory-add-btn:hover {
+  background: var(--bg-hover, #333);
+  border-color: var(--accent-color, #007acc);
+  color: var(--text-primary, #fff);
+}
+
+/* Add Form */
+.memory-add-form {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-tertiary, #2a2a2a);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 6px;
+}
+
+.memory-add-form select {
+  padding: 6px 10px;
+  background: var(--bg-secondary, #1e1e1e);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 4px;
+  color: var(--text-primary, #fff);
+  font-size: 12px;
+}
+
+.memory-add-form textarea {
+  min-height: 80px;
+  padding: 8px;
+  background: var(--bg-secondary, #1e1e1e);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 4px;
+  color: var(--text-primary, #fff);
+  font-size: 13px;
+  resize: vertical;
+}
+
+.memory-add-form textarea:focus {
+  outline: none;
+  border-color: var(--accent-color, #007acc);
+}
+
+.memory-add-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Buttons */
+.btn-save,
+.btn-cancel {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.btn-save {
+  background: var(--accent-color, #007acc);
+  color: white;
+}
+
+.btn-save:hover {
+  background: var(--accent-hover, #0098ff);
+}
+
+.btn-cancel {
+  background: var(--bg-secondary, #1e1e1e);
+  color: var(--text-secondary, #888);
+}
+
+.btn-cancel:hover {
+  background: var(--bg-hover, #333);
+  color: var(--text-primary, #fff);
+}
+
+/* Loading & Empty States */
+.memory-loading,
+.memory-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-secondary, #888);
+  font-size: 13px;
+}
+
+/* Memory List */
+.memory-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Memory Section */
+.memory-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.memory-section-title {
+  margin: 0;
+  padding: 4px 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary, #666);
+  border-bottom: 1px solid var(--border-color, #333);
+}
+
+/* Memory Item */
+.memory-item {
+  padding: 10px;
+  background: var(--bg-tertiary, #2a2a2a);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 6px;
+  transition: border-color 0.15s;
+}
+
+.memory-item:hover {
+  border-color: var(--border-hover, #444);
+}
+
+.memory-item.pinned {
+  border-color: var(--accent-color, #007acc);
+  background: rgba(0, 122, 204, 0.05);
+}
+
+.memory-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.memory-type-icon {
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+}
+
+.memory-date {
+  font-size: 11px;
+  color: var(--text-tertiary, #666);
+}
+
+.memory-source {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.memory-source.auto {
+  background: rgba(150, 150, 150, 0.2);
+  color: var(--text-secondary, #888);
+}
+
+.memory-source.manual {
+  background: rgba(0, 122, 204, 0.2);
+  color: var(--accent-color, #007acc);
+}
+
+.memory-source.claude {
+  background: rgba(200, 150, 50, 0.2);
+  color: #d4a536;
+}
+
+.memory-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.memory-item:hover .memory-actions {
+  opacity: 1;
+}
+
+.memory-action-btn {
+  padding: 2px 6px;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.memory-action-btn:hover {
+  background: var(--bg-hover, #333);
+  color: var(--text-primary, #fff);
+}
+
+.memory-action-btn.pin.active {
+  color: var(--accent-color, #007acc);
+}
+
+.memory-action-btn.delete:hover {
+  color: var(--danger-color, #e06c75);
+}
+
+.memory-content {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary, #fff);
+  word-wrap: break-word;
+}
+
+/* Edit Form */
+.memory-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.memory-edit textarea {
+  min-height: 60px;
+  padding: 8px;
+  background: var(--bg-secondary, #1e1e1e);
+  border: 1px solid var(--accent-color, #007acc);
+  border-radius: 4px;
+  color: var(--text-primary, #fff);
+  font-size: 13px;
+  resize: vertical;
+}
+
+.memory-edit textarea:focus {
+  outline: none;
+}
+
+.memory-edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Scrollbar */
+.memory-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.memory-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.memory-list::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, #444);
+  border-radius: 3px;
+}
+
+.memory-list::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, #555);
+}

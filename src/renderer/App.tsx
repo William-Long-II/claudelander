@@ -10,7 +10,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { NewItemChoice } from './components/NewItemChoice';
 import KanbanBoard from './components/KanbanBoard';
 import OrchestrationPanel from './components/OrchestrationPanel';
-import MemoryPanel from './components/MemoryPanel';
+import { MemoryPanel } from './components/panels/MemoryPanel';
 import { useSessions } from './store/sessions';
 import { useGroups } from './store/groups';
 import { useSharing } from './store/sharing';
@@ -100,8 +100,8 @@ const App: React.FC = () => {
   // Orchestration panel state
   const [orchestrationOpen, setOrchestrationOpen] = useState(false);
 
-  // Memory panel state
-  const [memoryPanelSessionId, setMemoryPanelSessionId] = useState<string | null>(null);
+  // Memory panel state (new panel-based UI)
+  const [memoryPanelOpen, setMemoryPanelOpen] = useState(false);
 
   // Persist view mode
   useEffect(() => {
@@ -128,6 +128,10 @@ const App: React.FC = () => {
   const homedir = window.electronAPI.homedir;
   const counts = getStateCounts();
   const isLoading = groupsLoading || sessionsLoading;
+
+  // Get the active session's group ID for memory panel
+  const activeSession = sessions.find(s => s.id === activeSessionId);
+  const activeGroupId = activeSession?.groupId || null;
 
   // Check sharing status for all sessions
   useEffect(() => {
@@ -270,7 +274,7 @@ const App: React.FC = () => {
       y: e.clientY,
       items: [
         { label: 'Rename', onClick: () => handleStartEditSession(sessionId, sessionName) },
-        { label: 'Memory', onClick: () => setMemoryPanelSessionId(sessionId) },
+        { label: 'Memory', onClick: () => { setActiveSessionId(sessionId); setMemoryPanelOpen(true); } },
         { label: 'Share Session', onClick: () => setShareModalSessionId(sessionId), disabled: !isAuthenticated },
         { label: 'separator', onClick: () => {}, separator: true },
         { label: 'Close Session', onClick: () => handleRemoveSession(sessionId), danger: true },
@@ -816,6 +820,13 @@ const App: React.FC = () => {
               ⚡
             </button>
             <button
+              className={`icon-button ${memoryPanelOpen ? 'active' : ''}`}
+              onClick={() => setMemoryPanelOpen(prev => !prev)}
+              title="Toggle Memory Panel"
+            >
+              🧠
+            </button>
+            <button
               className="icon-button"
               onClick={() => setSettingsOpen(true)}
               title="Settings"
@@ -1326,6 +1337,14 @@ const App: React.FC = () => {
         )}
       </main>
 
+      {/* Memory Panel */}
+      <MemoryPanel
+        isOpen={memoryPanelOpen}
+        onToggle={() => setMemoryPanelOpen(prev => !prev)}
+        sessionId={activeSessionId}
+        groupId={activeGroupId}
+      />
+
       <footer className="status-bar">
         <div className="status-left">
           <span className="status-item waiting">* {counts.waiting} waiting</span>
@@ -1442,15 +1461,6 @@ const App: React.FC = () => {
         defaultGroupId={groups[0]?.id || ''}
       />
 
-      {/* Memory panel */}
-      {memoryPanelSessionId && (
-        <MemoryPanel
-          isOpen={true}
-          onClose={() => setMemoryPanelSessionId(null)}
-          sessionId={memoryPanelSessionId}
-          sessionName={sessions.find(s => s.id === memoryPanelSessionId)?.name || 'Session'}
-        />
-      )}
     </div>
   );
 };
