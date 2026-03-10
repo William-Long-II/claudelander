@@ -94,7 +94,12 @@ export async function createHttpServer(config: HttpServerConfig): Promise<HttpSe
 
   // CORS - allow requests from any origin on local network
   app.use(cors({
-    origin: true, // Reflect the request origin
+    origin: (origin, callback) => {
+      // Allow requests with no origin (same-origin, mobile apps, curl)
+      if (!origin) return callback(null, true);
+      // Block cross-origin requests from browsers
+      callback(new Error('CORS not allowed'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

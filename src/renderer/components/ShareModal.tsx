@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ShareCode, CreateCodeOptions } from '../../shared/types';
 import { TIER_LIMITS, UserTier } from '../../shared/constants';
 import './ShareModal.css';
@@ -156,14 +156,44 @@ export const ShareModal: React.FC<ShareModalProps> = ({
     }
   };
 
+  const handleModalKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+      return;
+    }
+    if (e.key === 'Tab') {
+      const modal = e.currentTarget as HTMLElement;
+      const focusable = modal.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, [onClose]);
+
   if (!isOpen) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content share-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-content share-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-modal-title"
+        onKeyDown={handleModalKeyDown}
+      >
         <div className="modal-header">
-          <h2>Share Session</h2>
-          <button className="close-btn" onClick={onClose}>×</button>
+          <h2 id="share-modal-title">Share Session</h2>
+          <button className="close-btn" onClick={onClose} aria-label="Close share dialog">×</button>
         </div>
 
         <div className="modal-body">
@@ -188,8 +218,9 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 <h3>Create Share Code</h3>
 
                 <div className="form-group">
-                  <label>Permission</label>
+                  <label htmlFor="share-permission">Permission</label>
                   <select
+                    id="share-permission"
                     value={permission}
                     onChange={(e) => setPermission(e.target.value as 'read' | 'control')}
                   >
@@ -199,8 +230,9 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 </div>
 
                 <div className="form-group">
-                  <label>Expires In</label>
+                  <label htmlFor="share-expires">Expires In</label>
                   <select
+                    id="share-expires"
                     value={expiresIn}
                     onChange={(e) => setExpiresIn(Number(e.target.value))}
                   >
@@ -214,8 +246,9 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 </div>
 
                 <div className="form-group">
-                  <label>Max Uses</label>
+                  <label htmlFor="share-max-uses">Max Uses</label>
                   <select
+                    id="share-max-uses"
                     value={maxUses === null ? 'unlimited' : String(maxUses)}
                     onChange={(e) => {
                       const val = e.target.value;

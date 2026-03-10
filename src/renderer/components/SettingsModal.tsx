@@ -59,6 +59,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [githubUser, setGithubUser] = useState<{ username: string } | null>(null);
   const [githubLoading, setGithubLoading] = useState(false);
 
+  // Error state for surfacing errors to users
+  const [error, setError] = useState<string | null>(null);
+
   // Load initial state
   useEffect(() => {
     if (!isOpen) return;
@@ -150,6 +153,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         }
       } catch (err) {
         console.error('Failed to load API state:', err);
+        setError('Failed to load settings. Please try reopening the settings.');
       }
     };
 
@@ -169,6 +173,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     return unsubscribe;
   }, []);
 
+  // Auto-dismiss error after 5 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
   const handleStartServer = useCallback(async () => {
     setLoading(true);
     try {
@@ -177,6 +189,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setApiStatus(status);
     } catch (err) {
       console.error('Failed to start API server:', err);
+      setError('Failed to start API server.');
     }
     setLoading(false);
   }, [port, enableMdns]);
@@ -189,6 +202,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setPairingCode(null);
     } catch (err) {
       console.error('Failed to stop API server:', err);
+      setError('Failed to stop API server.');
     }
     setLoading(false);
   }, []);
@@ -209,9 +223,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         });
       } else {
         console.error('Failed to generate pairing code:', result.error);
+        setError('Failed to generate pairing code.');
       }
     } catch (err) {
       console.error('Failed to generate pairing code:', err);
+      setError('Failed to generate pairing code.');
     }
   }, []);
 
@@ -221,6 +237,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setPairingCode(null);
     } catch (err) {
       console.error('Failed to cancel pairing:', err);
+      setError('Failed to cancel pairing.');
     }
   }, []);
 
@@ -230,6 +247,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setPairedDevices(prev => prev.filter(d => d.id !== deviceId));
     } catch (err) {
       console.error('Failed to unpair device:', err);
+      setError('Failed to unpair device.');
     }
   }, []);
 
@@ -248,6 +266,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       );
     } catch (err) {
       console.error('Failed to update permissions:', err);
+      setError('Failed to update device permissions.');
     }
   }, []);
 
@@ -259,9 +278,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         setRemoteStatus(result.status);
       } else {
         console.error('Failed to enable remote access:', result.error);
+        setError('Failed to enable remote access.');
       }
     } catch (err) {
       console.error('Failed to enable remote access:', err);
+      setError('Failed to enable remote access.');
     }
     setRemoteLoading(false);
   }, []);
@@ -274,9 +295,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         setRemoteStatus(prev => ({ ...prev, enabled: false, connected: false }));
       } else {
         console.error('Failed to disable remote access:', result.error);
+        setError('Failed to disable remote access.');
       }
     } catch (err) {
       console.error('Failed to disable remote access:', err);
+      setError('Failed to disable remote access.');
     }
     setRemoteLoading(false);
   }, []);
@@ -379,6 +402,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setGithubUser(user);
     } catch (err) {
       console.error('GitHub login failed:', err);
+      setError('GitHub login failed. Please try again.');
     }
     setGithubLoading(false);
   }, []);
@@ -390,18 +414,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setGithubUser(null);
     } catch (err) {
       console.error('GitHub logout failed:', err);
+      setError('GitHub logout failed. Please try again.');
     }
     setGithubLoading(false);
   }, []);
+
+  const handleModalKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+      return;
+    }
+    if (e.key === 'Tab') {
+      const modal = e.currentTarget as HTMLElement;
+      const focusable = modal.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, [onClose]);
 
   if (!isOpen) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal settings-modal" onClick={e => e.stopPropagation()}>
+      <div
+        className="modal settings-modal"
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-modal-title"
+        onKeyDown={handleModalKeyDown}
+      >
         <div className="modal-header">
-          <h2>Settings</h2>
-          <button className="modal-close" onClick={onClose}>x</button>
+          <h2 id="settings-modal-title">Settings</h2>
+          <button className="modal-close" onClick={onClose} aria-label="Close settings">&times;</button>
         </div>
 
         <div className="settings-layout">
@@ -445,6 +500,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           </nav>
 
           <div className="settings-content">
+            {error && (
+              <div className="settings-error-banner" role="alert">
+                {error}
+                <button onClick={() => setError(null)} aria-label="Dismiss error">&times;</button>
+              </div>
+            )}
             {activeTab === 'general' && (
               <div className="settings-section">
                 <h3>General Settings</h3>

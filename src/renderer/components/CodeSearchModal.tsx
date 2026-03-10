@@ -111,13 +111,43 @@ export const CodeSearchModal: React.FC<CodeSearchModalProps> = ({
   const hasError = !isIndexing && index?.status === 'error';
   const needsIndex = !isIndexing && !hasError && (!index || index.status === 'pending' || isStaleIndexing);
 
+  const handleModalKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+      return;
+    }
+    if (e.key === 'Tab') {
+      const modal = e.currentTarget as HTMLElement;
+      const focusable = modal.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, [onClose]);
+
   if (!isOpen) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="code-search-modal" onClick={e => e.stopPropagation()}>
+      <div
+        className="code-search-modal"
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="code-search-title"
+        onKeyDown={handleModalKeyDown}
+      >
         <div className="code-search-header">
-          <h3>Code Search</h3>
+          <h3 id="code-search-title">Code Search</h3>
           <div className="search-mode-tabs">
             <button
               className={`mode-tab ${searchMode === 'code' ? 'active' : ''}`}
@@ -311,7 +341,7 @@ export const CodeSearchModal: React.FC<CodeSearchModalProps> = ({
 
         {/* Footer */}
         <div className="modal-footer">
-          <button className="close-btn" onClick={onClose}>Close</button>
+          <button className="close-btn" onClick={onClose} aria-label="Close code search">Close</button>
         </div>
       </div>
     </div>

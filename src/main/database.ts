@@ -18,6 +18,7 @@ export function getDatabase(): Database.Database {
 
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
 
   // Try to load sqlite-vec extension for vector search (optional)
   try {

@@ -132,6 +132,10 @@ export function getPinnedMemories(groupId?: string): Memory[] {
   return rows.map(rowToMemory);
 }
 
+function escapeLike(value: string): string {
+  return value.replace(/[%_\\]/g, '\\$&');
+}
+
 export function searchMemories(
   query: string,
   groupId?: string,
@@ -142,8 +146,8 @@ export function searchMemories(
   let rows: MemoryRow[];
 
   // Use LIKE search (simpler and works without FTS setup)
-  const likeQuery = `%${query}%`;
-  let sql = 'SELECT * FROM memories WHERE content LIKE ?';
+  const likeQuery = `%${escapeLike(query)}%`;
+  let sql = "SELECT * FROM memories WHERE content LIKE ? ESCAPE '\\'";
   const params: (string | number)[] = [likeQuery];
 
   if (groupId) {

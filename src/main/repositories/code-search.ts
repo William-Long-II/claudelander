@@ -310,6 +310,10 @@ export function deleteSymbolsByFile(indexId: string, filePath: string): void {
     .run(indexId, filePath);
 }
 
+function escapeLike(value: string): string {
+  return value.replace(/[%_\\]/g, '\\$&');
+}
+
 export function searchSymbols(
   indexId: string,
   name: string,
@@ -322,9 +326,9 @@ export function searchSymbols(
   let query = `
     SELECT name, symbol_type, file_path, line, "column", signature
     FROM symbols
-    WHERE index_id = ? AND LOWER(name) LIKE LOWER(?)
+    WHERE index_id = ? AND LOWER(name) LIKE LOWER(?) ESCAPE '\\'
   `;
-  const params: any[] = [indexId, `%${name}%`];
+  const params: any[] = [indexId, `%${escapeLike(name)}%`];
 
   if (symbolType) {
     query += ' AND symbol_type = ?';

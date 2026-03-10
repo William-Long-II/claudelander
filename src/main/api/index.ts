@@ -32,7 +32,7 @@ export interface ApiServerStatus {
 
 const DEFAULT_CONFIG: ApiServerConfig = {
   port: 8443,
-  bindAddress: '0.0.0.0',
+  bindAddress: '127.0.0.1',
   enableMdns: true,
 };
 

@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import * as fs from 'fs';
 
 export interface ShellInfo {
@@ -48,7 +48,7 @@ function detectWindowsShell(): ShellInfo {
   if (distros.length > 0) {
     // Verify the distro actually works
     try {
-      execSync(`wsl.exe -d "${distros[0]}" echo ok`, {
+      execFileSync('wsl.exe', ['-d', distros[0], 'echo', 'ok'], {
         encoding: 'utf-8',
         timeout: 5000,
         stdio: ['pipe', 'pipe', 'pipe'],

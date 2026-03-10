@@ -86,7 +86,7 @@ export class PairingManager {
       },
     };
 
-    log.info(`[PairingManager] Generated pairing code: ${code} (expires in ${PAIRING_CODE_EXPIRY_MS / 1000}s)`);
+    log.info(`[PairingManager] Generated pairing code (expires in ${PAIRING_CODE_EXPIRY_MS / 1000}s)`);
 
     return this.activePairingCode;
   }

@@ -438,6 +438,28 @@ function createWindow(): void {
   });
 }
 
+// Safe IPC wrappers that catch and log errors
+function safeHandle(channel: string, handler: (...args: any[]) => any): void {
+  ipcMain.handle(channel, async (_event, ...args) => {
+    try {
+      return await handler(...args);
+    } catch (err) {
+      log.error(`[IPC] ${channel} failed:`, err);
+      throw err;
+    }
+  });
+}
+
+function safeOn(channel: string, handler: (...args: any[]) => void): void {
+  ipcMain.on(channel, (_event, ...args) => {
+    try {
+      handler(...args);
+    } catch (err) {
+      log.error(`[IPC] ${channel} failed:`, err);
+    }
+  });
+}
+
 // IPC Handlers
 ipcMain.handle('pty:create', async (_, id: string, cwd: string, launchClaude: boolean = false) => {
   try {
@@ -455,15 +477,15 @@ ipcMain.handle('pty:create', async (_, id: string, cwd: string, launchClaude: bo
   }
 });
 
-ipcMain.on('pty:write', (_, id: string, data: string) => {
+safeOn('pty:write', (id: string, data: string) => {
   ptyManager.write(id, data);
 });
 
-ipcMain.on('pty:resize', (_, id: string, cols: number, rows: number) => {
+safeOn('pty:resize', (id: string, cols: number, rows: number) => {
   ptyManager.resize(id, cols, rows);
 });
 
-ipcMain.on('pty:kill', (_, id: string) => {
+safeOn('pty:kill', (id: string) => {
   // Stop sharing if this session was being shared
   shareManager.stopSharing(id).catch(() => {
     // Ignore errors - session may not have been shared
@@ -472,27 +494,27 @@ ipcMain.on('pty:kill', (_, id: string) => {
 });
 
 // Database IPC Handlers - Groups
-ipcMain.handle('db:groups:getAll', async () => {
+safeHandle('db:groups:getAll', () => {
   return groupsRepo.getAllGroups();
 });
 
-ipcMain.handle('db:groups:create', async (_, group: Group) => {
+safeHandle('db:groups:create', (group: Group) => {
   groupsRepo.createGroup(group);
   getApiServer().broadcastGroupsUpdated();
 });
 
-ipcMain.handle('db:groups:update', async (_, id: string, updates: Partial<Group>) => {
+safeHandle('db:groups:update', (id: string, updates: Partial<Group>) => {
   groupsRepo.updateGroup(id, updates);
   getApiServer().broadcastGroupsUpdated();
 });
 
-ipcMain.handle('db:groups:delete', async (_, id: string) => {
+safeHandle('db:groups:delete', (id: string) => {
   groupsRepo.deleteGroup(id);
   getApiServer().broadcastGroupsUpdated();
 });
 
 // Dialog IPC Handlers
-ipcMain.handle('dialog:selectDirectory', async () => {
+safeHandle('dialog:selectDirectory', async () => {
   if (!mainWindow) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory', 'showHiddenFiles'],
@@ -505,16 +527,16 @@ ipcMain.handle('dialog:selectDirectory', async () => {
 });
 
 // Database IPC Handlers - Sessions
-ipcMain.handle('db:sessions:getAll', async () => {
+safeHandle('db:sessions:getAll', () => {
   return sessionsRepo.getAllSessions();
 });
 
-ipcMain.handle('db:sessions:create', async (_, session: Session) => {
+safeHandle('db:sessions:create', (session: Session) => {
   sessionsRepo.createSession(session);
   getApiServer().broadcastSessionsUpdated();
 });
 
-ipcMain.handle('db:sessions:update', async (_, id: string, updates: Partial<Session>) => {
+safeHandle('db:sessions:update', (id: string, updates: Partial<Session>) => {
   sessionsRepo.updateSession(id, updates);
   getApiServer().broadcastSessionsUpdated();
 });
@@ -531,56 +553,56 @@ ipcMain.handle('db:sessions:delete', async (_, id: string) => {
 });
 
 // Database IPC Handlers - Memories
-ipcMain.handle('db:memories:getBySession', (_, sessionId: string) => {
+safeHandle('db:memories:getBySession', (sessionId: string) => {
   return memoriesRepo.getMemoriesBySession(sessionId);
 });
 
-ipcMain.handle('db:memories:getByGroup', (_, groupId: string) => {
+safeHandle('db:memories:getByGroup', (groupId: string) => {
   return memoriesRepo.getMemoriesByGroup(groupId);
 });
 
-ipcMain.handle('db:memories:getPinned', (_, groupId?: string) => {
+safeHandle('db:memories:getPinned', (groupId?: string) => {
   return memoriesRepo.getPinnedMemories(groupId);
 });
 
-ipcMain.handle('db:memories:search', (_, query: string, groupId?: string) => {
+safeHandle('db:memories:search', (query: string, groupId?: string) => {
   return memoriesRepo.searchMemories(query, groupId);
 });
 
-ipcMain.handle('db:memories:create', (_, input: MemoryCreateInput) => {
+safeHandle('db:memories:create', (input: MemoryCreateInput) => {
   return memoriesRepo.createMemory(input);
 });
 
-ipcMain.handle('db:memories:update', (_, id: string, updates: MemoryUpdateInput) => {
+safeHandle('db:memories:update', (id: string, updates: MemoryUpdateInput) => {
   memoriesRepo.updateMemory(id, updates);
 });
 
-ipcMain.handle('db:memories:delete', (_, id: string) => {
+safeHandle('db:memories:delete', (id: string) => {
   memoriesRepo.deleteMemory(id);
 });
 
-ipcMain.handle('db:memories:getForInjection', (_, sessionId: string, groupId: string) => {
+safeHandle('db:memories:getForInjection', (sessionId: string, groupId: string) => {
   return memoriesRepo.getMemoriesForInjection(sessionId, groupId);
 });
 
-ipcMain.handle('db:memories:getById', (_, id: string) => {
+safeHandle('db:memories:getById', (id: string) => {
   return memoriesRepo.getMemoryById(id);
 });
 
-ipcMain.handle('db:memories:getGlobal', () => {
+safeHandle('db:memories:getGlobal', () => {
   return memoriesRepo.getGlobalContextMemories();
 });
 
 // Preferences IPC Handlers
-ipcMain.handle('prefs:get', async (_, key: string) => {
+safeHandle('prefs:get', (key: string) => {
   return prefsRepo.getPreference(key);
 });
 
-ipcMain.handle('prefs:set', async (_, key: string, value: string) => {
+safeHandle('prefs:set', (key: string, value: string) => {
   prefsRepo.setPreference(key, value);
 });
 
-ipcMain.handle('prefs:getAll', async () => {
+safeHandle('prefs:getAll', () => {
   // Return all app settings as an object
   const settings = {
     autoLaunchClaude: prefsRepo.getPreference('autoLaunchClaude') ?? 'true',
@@ -607,11 +629,11 @@ ipcMain.handle('prefs:getAll', async () => {
 });
 
 // Sound IPC Handlers
-ipcMain.handle('sound:test', (_, event: SoundEvent, volume?: number, customPath?: string) => {
+safeHandle('sound:test', (event: SoundEvent, volume?: number, customPath?: string) => {
   soundManager.testSound(event, volume, customPath);
 });
 
-ipcMain.handle('sound:selectFile', async () => {
+safeHandle('sound:selectFile', async () => {
   if (!mainWindow) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],
@@ -627,92 +649,92 @@ ipcMain.handle('sound:selectFile', async () => {
 });
 
 // Auth IPC handlers
-ipcMain.handle('auth:login', () => {
+safeHandle('auth:login', () => {
   authService.startLogin();
 });
 
-ipcMain.handle('auth:logout', () => {
+safeHandle('auth:logout', () => {
   authService.logout();
   return { success: true };
 });
 
-ipcMain.handle('auth:getUser', () => {
+safeHandle('auth:getUser', () => {
   return authService.currentUser;
 });
 
-ipcMain.handle('auth:setToken', async (_, token: string) => {
+safeHandle('auth:setToken', async (token: string) => {
   return authService.setToken(token);
 });
 
 // Teams IPC Handlers
-ipcMain.handle('teams:login', () => {
+safeHandle('teams:login', () => {
   teamsAuthService.startLogin();
 });
 
-ipcMain.handle('teams:logout', () => {
+safeHandle('teams:logout', () => {
   teamsAuthService.logout();
   teamsNotifier.clearCache();
   return { success: true };
 });
 
-ipcMain.handle('teams:getStatus', () => {
+safeHandle('teams:getStatus', () => {
   return {
     connected: teamsAuthService.isAuthenticated,
     user: teamsAuthService.currentUser,
   };
 });
 
-ipcMain.handle('teams:testNotification', async () => {
+safeHandle('teams:testNotification', async () => {
   return teamsNotifier.sendTestNotification();
 });
 
 // App update check (for About dialog)
-ipcMain.handle('app:check-for-update', async () => {
+safeHandle('app:check-for-update', async () => {
   return checkForUpdatesManual();
 });
 
 // App update download (for About dialog)
-ipcMain.handle('app:download-update', async () => {
+safeHandle('app:download-update', () => {
   downloadUpdate();
 });
 
 // App restart and update (for About dialog)
-ipcMain.handle('app:restart-and-update', async () => {
+safeHandle('app:restart-and-update', async () => {
   const { autoUpdater } = await import('electron-updater');
   autoUpdater.quitAndInstall(false, true);
 });
 
 // Sharing IPC handlers (host)
-ipcMain.handle('share:start', async (_, localSessionId: string) => {
+safeHandle('share:start', async (localSessionId: string) => {
   return shareManager.startSharing(localSessionId);
 });
 
-ipcMain.handle('share:stop', async (_, localSessionId: string) => {
+safeHandle('share:stop', async (localSessionId: string) => {
   return shareManager.stopSharing(localSessionId);
 });
 
-ipcMain.handle('share:createCode', async (_, localSessionId: string, options: any) => {
+safeHandle('share:createCode', async (localSessionId: string, options: any) => {
   return shareManager.createCode(localSessionId, options);
 });
 
-ipcMain.handle('share:revokeCode', async (_, code: string) => {
+safeHandle('share:revokeCode', async (code: string) => {
   return shareManager.revokeCode(code);
 });
 
-ipcMain.handle('share:getCodes', async (_, localSessionId: string) => {
+safeHandle('share:getCodes', async (localSessionId: string) => {
   return shareManager.getCodes(localSessionId);
 });
 
-ipcMain.handle('share:isSharing', (_, localSessionId: string) => {
+safeHandle('share:isSharing', (localSessionId: string) => {
   return shareManager.isSharing(localSessionId);
 });
 
-ipcMain.handle('share:getGuestCount', (_, localSessionId: string) => {
+safeHandle('share:getGuestCount', (localSessionId: string) => {
   return shareManager.getGuestCount(localSessionId);
 });
 
 // Sharing IPC handlers (guest)
-ipcMain.handle('share:join', async (_, code: string) => {
+safeHandle('share:join', async (code: string) => {
   const { permission, hostUsername, sessionName, relayClient } = await shareManager.joinSession(code);
 
   // Forward relay data to renderer
@@ -727,11 +749,11 @@ ipcMain.handle('share:join', async (_, code: string) => {
   return { code, permission, hostUsername, sessionName };
 });
 
-ipcMain.handle('share:leave', (_, code: string) => {
+safeHandle('share:leave', (code: string) => {
   shareManager.leaveSession(code);
 });
 
-ipcMain.handle('share:write', (_, code: string, data: string) => {
+safeHandle('share:write', (code: string, data: string) => {
   const client = shareManager.getJoinedClient(code);
   if (client && client.canSendInput()) {
     client.send(data);
@@ -742,7 +764,16 @@ ipcMain.handle('share:write', (_, code: string, data: string) => {
 
 // Open external URL
 ipcMain.handle('shell:openExternal', (_, url: string) => {
-  shell.openExternal(url);
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      log.warn('[Main] Blocked shell:openExternal for non-HTTP URL:', url);
+      return;
+    }
+    shell.openExternal(url);
+  } catch {
+    log.warn('[Main] Invalid URL passed to shell:openExternal:', url);
+  }
 });
 
 // ============================================================================
@@ -779,7 +810,7 @@ ipcMain.handle('api:stop', async () => {
   }
 });
 
-ipcMain.handle('api:getStatus', () => {
+safeHandle('api:getStatus', () => {
   const apiServer = getApiServer();
   return apiServer.getStatus();
 });
@@ -827,13 +858,13 @@ ipcMain.handle('api:generatePairingCode', async (_, options?: { canControl?: boo
   }
 });
 
-ipcMain.handle('api:cancelPairing', () => {
+safeHandle('api:cancelPairing', () => {
   const apiServer = getApiServer();
   apiServer.pairingManager.cancelPairing();
   return { success: true };
 });
 
-ipcMain.handle('api:getPairedDevices', () => {
+safeHandle('api:getPairedDevices', () => {
   const apiServer = getApiServer();
   const devices = apiServer.pairingManager.getAllDevices();
   return devices.map(d => ({
@@ -869,7 +900,7 @@ ipcMain.handle('api:updateDevicePermissions', (_, deviceId: string, permissions:
   }
 });
 
-ipcMain.handle('api:hasPairingCode', () => {
+safeHandle('api:hasPairingCode', () => {
   const apiServer = getApiServer();
   return { active: apiServer.pairingManager.hasActivePairingCode() };
 });
@@ -897,7 +928,7 @@ ipcMain.handle('api:disableRemoteAccess', () => {
   }
 });
 
-ipcMain.handle('api:getRemoteAccessStatus', () => {
+safeHandle('api:getRemoteAccessStatus', () => {
   const apiServer = getApiServer();
   return apiServer.getRemoteAccessStatus();
 });
@@ -906,11 +937,11 @@ ipcMain.handle('api:getRemoteAccessStatus', () => {
 // Vector Search IPC Handlers
 // ============================================================================
 
-ipcMain.handle('vector-search:get-index-status', (_, directoryPath: string) => {
+safeHandle('vector-search:get-index-status', (directoryPath: string) => {
   return getVectorSearchManager().getIndexStatus(directoryPath);
 });
 
-ipcMain.handle('vector-search:get-all-indexes', () => {
+safeHandle('vector-search:get-all-indexes', () => {
   return getVectorSearchManager().getAllIndexes();
 });
 
@@ -925,20 +956,20 @@ ipcMain.handle('vector-search:start-indexing', async (_, directoryPath: string) 
   }
 });
 
-ipcMain.handle('vector-search:search-code', async (_, directoryPath: string, query: string, limit?: number) => {
+safeHandle('vector-search:search-code', async (directoryPath: string, query: string, limit?: number) => {
   return getVectorSearchManager().searchCode(directoryPath, query, limit);
 });
 
-ipcMain.handle('vector-search:search-symbols', (_, directoryPath: string, name: string, symbolType?: string, limit?: number) => {
+safeHandle('vector-search:search-symbols', (directoryPath: string, name: string, symbolType?: string, limit?: number) => {
   return getVectorSearchManager().searchSymbols(directoryPath, name, symbolType as any, limit);
 });
 
-ipcMain.handle('vector-search:cancel-indexing', (_, indexId: string) => {
+safeHandle('vector-search:cancel-indexing', (indexId: string) => {
   getVectorSearchManager().cancelIndexing(indexId);
   return { success: true };
 });
 
-ipcMain.handle('vector-search:delete-index', (_, directoryPath: string) => {
+safeHandle('vector-search:delete-index', (directoryPath: string) => {
   getVectorSearchManager().deleteIndex(directoryPath);
   return { success: true };
 });
@@ -956,16 +987,16 @@ ipcMain.handle('vector-search:retry-indexing', async (_, directoryPath: string) 
 // Editor Integration IPC Handlers
 // ============================================================================
 
-ipcMain.handle('editor:open', async (_, filePath: string, line?: number, column?: number) => {
+safeHandle('editor:open', async (filePath: string, line?: number, column?: number) => {
   const preferredEditor = prefsRepo.getPreference('preferredEditor') as EditorType | null;
   return openInEditor(filePath, line ?? 1, column ?? 1, preferredEditor ?? undefined);
 });
 
-ipcMain.handle('editor:detectAvailable', async () => {
+safeHandle('editor:detectAvailable', async () => {
   return detectAvailableEditors();
 });
 
-ipcMain.handle('editor:getOptions', () => {
+safeHandle('editor:getOptions', () => {
   return getEditorOptions();
 });
 
@@ -1040,20 +1071,33 @@ app.on('activate', () => {
   }
 });
 
-app.on('before-quit', async () => {
+let cleanupComplete = false;
+
+app.on('before-quit', (event) => {
+  if (cleanupComplete) return;
+
+  event.preventDefault();
   isQuitting = true;
 
-  // Stop all active shares before quitting
-  try {
-    await shareManager.stopAllSharing();
-  } catch (e) {
-    log.error('Error stopping shares on quit:', e);
-  }
+  (async () => {
+    try {
+      await shareManager.stopAllSharing();
+    } catch (e) {
+      log.error('Error stopping shares on quit:', e);
+    }
 
-  // Cleanup vector search manager
-  disposeVectorSearchManager();
+    try {
+      await ptyManager.killAll();
+    } catch (e) {
+      log.error('Error killing PTYs on quit:', e);
+    }
 
-  trayManager.destroy();
-  stateMonitor?.stop();
-  closeDatabase();
+    disposeVectorSearchManager();
+    trayManager.destroy();
+    stateMonitor?.stop();
+    closeDatabase();
+
+    cleanupComplete = true;
+    app.quit();
+  })();
 });

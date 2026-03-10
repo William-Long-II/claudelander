@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './NamePromptModal.css';
 
 interface NamePromptModalProps {
@@ -62,12 +62,42 @@ export const NamePromptModal: React.FC<NamePromptModalProps> = ({
     }
   };
 
+  const handleModalKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onCancel();
+      return;
+    }
+    if (e.key === 'Tab') {
+      const modal = e.currentTarget as HTMLElement;
+      const focusable = modal.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, [onCancel]);
+
   if (!isOpen) return null;
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="name-prompt-modal" onClick={e => e.stopPropagation()}>
-        <h3>{title}</h3>
+      <div
+        className="name-prompt-modal"
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="name-prompt-title"
+        onKeyDown={handleModalKeyDown}
+      >
+        <h3 id="name-prompt-title">{title}</h3>
         <form onSubmit={handleSubmit}>
           <input
             ref={inputRef}

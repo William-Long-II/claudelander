@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import './ShareModal.css'; // Reuse styles
 
 interface JoinSessionModalProps {
@@ -51,14 +51,44 @@ export const JoinSessionModal: React.FC<JoinSessionModalProps> = ({
     }
   };
 
+  const handleModalKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+      return;
+    }
+    if (e.key === 'Tab') {
+      const modal = e.currentTarget as HTMLElement;
+      const focusable = modal.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, [onClose]);
+
   if (!isOpen) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content share-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-content share-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="join-modal-title"
+        onKeyDown={handleModalKeyDown}
+      >
         <div className="modal-header">
-          <h2>Join Shared Session</h2>
-          <button className="close-btn" onClick={onClose}>x</button>
+          <h2 id="join-modal-title">Join Shared Session</h2>
+          <button className="close-btn" onClick={onClose} aria-label="Close join dialog">&times;</button>
         </div>
 
         <div className="modal-body">
@@ -67,7 +97,9 @@ export const JoinSessionModal: React.FC<JoinSessionModalProps> = ({
           {error && <div className="error-message">{error}</div>}
 
           <div className="form-group">
+            <label htmlFor="join-code" className="sr-only">Session Code</label>
             <input
+              id="join-code"
               type="text"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}

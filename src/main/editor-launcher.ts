@@ -135,6 +135,11 @@ export async function openInEditor(
   // Normalize path
   const normalizedPath = path.resolve(filePath);
 
+  // Validate for Windows shell metacharacters to prevent command injection
+  if (process.platform === 'win32' && /[&|><^]/.test(normalizedPath)) {
+    return { success: false, error: 'Invalid characters in file path' };
+  }
+
   // Check file exists
   if (!fs.existsSync(normalizedPath)) {
     return { success: false, error: `File not found: ${normalizedPath}` };

@@ -76,13 +76,13 @@ const TerminalHeader: React.FC<TerminalHeaderProps> = ({
       </span>
 
       <div className="header-actions">
-        <button className="header-action" onClick={onRestart} title="Restart session">
+        <button className="header-action" onClick={onRestart} title="Restart session" aria-label="Restart session">
           ↻
         </button>
-        <button className="header-action" onClick={onStop} title="Stop session">
+        <button className="header-action" onClick={onStop} title="Stop session" aria-label="Stop session">
           ■
         </button>
-        <button className="header-action danger" onClick={onClose} title="Close session">
+        <button className="header-action danger" onClick={onClose} title="Close session" aria-label="Close session">
           ×
         </button>
       </div>

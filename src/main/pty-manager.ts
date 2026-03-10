@@ -1,10 +1,22 @@
 import * as pty from 'node-pty';
 import * as fs from 'fs';
+import { execFile } from 'child_process';
 import { EventEmitter } from 'events';
 import { getClaudeCommand, getSocketPath } from './claude-launcher';
 import { detectShell, ShellInfo } from './shell-detector';
 import { getPreference } from './repositories/preferences';
 import { writeMemoryFile, getMemoryInjectionContent } from './memory/injector';
+import log from 'electron-log';
+
+function redactEnv(env: Record<string, string> | undefined): Record<string, string> | undefined {
+  if (!env) return undefined;
+  return Object.fromEntries(
+    Object.entries(env).map(([k, v]) => [
+      k,
+      /key|secret|token|password|auth/i.test(k) ? '[REDACTED]' : v,
+    ])
+  );
+}
 
 interface PtySession {
   id: string;
@@ -221,18 +233,70 @@ class PtyManager extends EventEmitter {
     }
   }
 
-  kill(id: string): void {
-    const session = this.sessions.get(id);
-    if (session) {
+  kill(id: string): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const session = this.sessions.get(id);
+      if (!session) {
+        resolve();
+        return;
+      }
+
       if (session.idleTimeout) {
         clearTimeout(session.idleTimeout);
       }
       if (session.workingDebounce) {
         clearTimeout(session.workingDebounce);
       }
+
+      const pid = session.pty.pid;
+      let exited = false;
+
+      const onExit = () => {
+        if (exited) return;
+        exited = true;
+        this.sessions.delete(id);
+        resolve();
+      };
+
+      // Listen for normal exit
+      session.pty.onExit(() => onExit());
+
+      // Send graceful kill signal
       session.pty.kill();
-      this.sessions.delete(id);
-    }
+
+      // Force-kill after 3 seconds if process hasn't exited (Windows only)
+      if (process.platform === 'win32' && pid) {
+        setTimeout(() => {
+          if (!exited) {
+            log.warn(`[PTY] Force-killing session ${id} (pid ${pid}) after 3s timeout`);
+            try {
+              execFile('taskkill', ['/F', '/T', '/PID', String(pid)], (err) => {
+                if (err) {
+                  log.error(`[PTY] taskkill failed for pid ${pid}:`, err);
+                }
+                onExit();
+              });
+            } catch (err) {
+              log.error(`[PTY] Failed to spawn taskkill for pid ${pid}:`, err);
+              onExit();
+            }
+          }
+        }, 3000);
+      } else {
+        // On non-Windows, fall back to a timeout cleanup
+        setTimeout(() => {
+          if (!exited) {
+            log.warn(`[PTY] Session ${id} did not exit within 3s, cleaning up`);
+            onExit();
+          }
+        }, 3000);
+      }
+    });
+  }
+
+  async killAll(): Promise<void> {
+    const sessionIds = Array.from(this.sessions.keys());
+    await Promise.all(sessionIds.map(id => this.kill(id)));
   }
 
   getSession(id: string): PtySession | undefined {

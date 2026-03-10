@@ -134,6 +134,7 @@ export function MemoryPanel({ isOpen, onToggle, sessionId, groupId }: MemoryPane
                 onClick={() => togglePin(memory.id)}
                 className={`btn-pin ${memory.pinned ? 'active' : ''}`}
                 title={memory.pinned ? 'Unpin' : 'Pin'}
+                aria-label={memory.pinned ? 'Unpin memory' : 'Pin memory'}
               >
                 {memory.pinned ? '!' : 'o'}
               </button>
@@ -141,6 +142,7 @@ export function MemoryPanel({ isOpen, onToggle, sessionId, groupId }: MemoryPane
                 onClick={() => handleStartEdit(memory)}
                 className="btn-edit"
                 title="Edit"
+                aria-label="Edit memory"
               >
                 /
               </button>
@@ -148,6 +150,7 @@ export function MemoryPanel({ isOpen, onToggle, sessionId, groupId }: MemoryPane
                 onClick={() => deleteMemory(memory.id)}
                 className="btn-delete"
                 title="Delete"
+                aria-label="Delete memory"
               >
                 x
               </button>
@@ -193,7 +196,7 @@ export function MemoryPanel({ isOpen, onToggle, sessionId, groupId }: MemoryPane
             onChange={handleSearch}
           />
           {searchQuery && (
-            <button onClick={clearSearch} className="search-clear">x</button>
+            <button onClick={clearSearch} className="search-clear" aria-label="Clear search">x</button>
           )}
         </div>
 

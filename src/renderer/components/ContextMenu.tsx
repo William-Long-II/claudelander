@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import '../styles/context-menu.css';
 
 export interface MenuItem {
@@ -26,20 +26,20 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, items, onClose }) => {
       }
     };
 
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
     document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
     };
   }, [onClose]);
+
+  // Auto-focus first menu item on mount
+  useEffect(() => {
+    if (menuRef.current) {
+      const firstItem = menuRef.current.querySelector<HTMLElement>('button[role="menuitem"]:not([disabled])');
+      firstItem?.focus();
+    }
+  }, []);
 
   // Adjust position to stay within viewport
   useEffect(() => {
@@ -57,15 +57,53 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, items, onClose }) => {
     }
   }, [x, y]);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const menuItems = menuRef.current?.querySelectorAll<HTMLElement>('button[role="menuitem"]:not([disabled])');
+    if (!menuItems || menuItems.length === 0) return;
+
+    const currentIndex = Array.from(menuItems).findIndex(item => item === document.activeElement);
+
+    switch (e.key) {
+      case 'ArrowDown': {
+        e.preventDefault();
+        const nextIndex = currentIndex < menuItems.length - 1 ? currentIndex + 1 : 0;
+        menuItems[nextIndex].focus();
+        break;
+      }
+      case 'ArrowUp': {
+        e.preventDefault();
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : menuItems.length - 1;
+        menuItems[prevIndex].focus();
+        break;
+      }
+      case 'Escape':
+        e.preventDefault();
+        onClose();
+        break;
+      case 'Home': {
+        e.preventDefault();
+        menuItems[0].focus();
+        break;
+      }
+      case 'End': {
+        e.preventDefault();
+        menuItems[menuItems.length - 1].focus();
+        break;
+      }
+    }
+  }, [onClose]);
+
   return (
     <div
       ref={menuRef}
       className="context-menu"
       style={{ left: x, top: y }}
+      role="menu"
+      onKeyDown={handleKeyDown}
     >
       {items.map((item, index) => (
         item.separator ? (
-          <div key={index} className="context-menu-separator" />
+          <div key={index} className="context-menu-separator" role="separator" />
         ) : (
           <button
             key={index}
@@ -77,6 +115,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, items, onClose }) => {
               }
             }}
             disabled={item.disabled}
+            role="menuitem"
           >
             {item.label}
           </button>

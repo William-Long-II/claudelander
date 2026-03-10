@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
   <title>About ClaudeLander</title>
   <style>
     * {
@@ -194,7 +195,7 @@
 
     <div class="credits">
       Created by <strong>Will Long II</strong> & <strong>Claude</strong><br>
-      <span style="color: #555;">&copy; 2024-2025</span>
+      <span style="color: #555;" id="copyright">&copy; 2024-2025</span>
     </div>
 
     <div class="button-group">
@@ -303,6 +304,8 @@
       downloadBtn.disabled = false;
       downloadBtn.onclick = downloadUpdate;
     });
+    // Dynamic copyright year
+    document.getElementById('copyright').textContent = '\u00A9 2024-' + new Date().getFullYear();
   </script>
 </body>
 </html>
