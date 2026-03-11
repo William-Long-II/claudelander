@@ -10,10 +10,12 @@ import { NewItemChoice } from './components/NewItemChoice';
 import { MemoryPanel } from './components/panels/MemoryPanel';
 import { CodeSearchModal } from './components/CodeSearchModal';
 import { SearchModal } from './components/SearchModal';
+import { CommandPalette } from './components/CommandPalette';
 import { useSessions } from './store/sessions';
 import { useGroups } from './store/groups';
 import { useSharing } from './store/sharing';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { SessionTemplate } from '../shared/types';
 import './styles/global.css';
 import './styles/context-menu.css';
 import './styles/chat.css';
@@ -98,6 +100,9 @@ const App: React.FC = () => {
 
   // Chat search modal state
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
+
+  // Command palette state
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   // Destructive action confirmation state
   const [confirmAction, setConfirmAction] = useState<{
@@ -729,6 +734,25 @@ const App: React.FC = () => {
     setChatSearchOpen(true);
   }, []);
 
+  const handleCommandPalette = useCallback(() => {
+    setCommandPaletteOpen(prev => !prev);
+  }, []);
+
+  const handleCommandPaletteSelectSession = useCallback((sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      setActiveSessionId(sessionId);
+    }
+  }, [sessions, setActiveSessionId]);
+
+  const handleCommandPaletteSelectTemplate = useCallback(async (template: SessionTemplate) => {
+    // Create a new session from the template
+    const groupId = template.groupId || (groups.length > 0 ? groups[0].id : null);
+    if (!groupId) return;
+    const cwd = template.workingDir || getEffectiveWorkingDir(groupId) || homedir;
+    await createSession(groupId, template.name, cwd, true);
+  }, [groups, getEffectiveWorkingDir, homedir, createSession]);
+
   const shortcutHandlers = useMemo(() => ({
     onNewSession: handleKeyboardNewSession,
     onNextSession: handleNextSession,
@@ -745,7 +769,8 @@ const App: React.FC = () => {
     onSelect: handleSelect,
     onCodeSearch: handleCodeSearch,
     onChatSearch: handleChatSearch,
-  }), [handleKeyboardNewSession, handleNextSession, handlePrevSession, handleNextWaiting, handleCloseSession, handleFocusSidebar, handleNewGroup, handleNewSubGroup, handleNavigateUp, handleNavigateDown, handleCollapse, handleExpand, handleSelect, handleCodeSearch, handleChatSearch]);
+    onCommandPalette: handleCommandPalette,
+  }), [handleKeyboardNewSession, handleNextSession, handlePrevSession, handleNextWaiting, handleCloseSession, handleFocusSidebar, handleNewGroup, handleNewSubGroup, handleNavigateUp, handleNavigateDown, handleCollapse, handleExpand, handleSelect, handleCodeSearch, handleChatSearch, handleCommandPalette]);
 
   useKeyboardShortcuts(shortcutHandlers);
 
@@ -1509,6 +1534,16 @@ const App: React.FC = () => {
           setActiveSessionId(sessionId);
         }}
         sessions={sessions}
+      />
+
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onSelectSession={handleCommandPaletteSelectSession}
+        onSelectTemplate={handleCommandPaletteSelectTemplate}
+        sessions={sessions}
+        groups={groups}
       />
 
       {/* Destructive action confirmation dialog */}

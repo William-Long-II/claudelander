@@ -317,6 +317,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   templatesDelete: (id: string): Promise<boolean> =>
     ipcRenderer.invoke('templates:delete', id),
 
+  // Conversation Branches
+  branchesGetBySession: (sessionId: string): Promise<any[]> =>
+    ipcRenderer.invoke('branches:getBySession', sessionId),
+  branchesCreate: (input: any): Promise<any> =>
+    ipcRenderer.invoke('branches:create', input),
+  branchesDelete: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('branches:delete', id),
+
   // Claude Session API (3.0)
   claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) =>
     ipcRenderer.invoke('claude:start', sessionId, cwd, prompt, options),

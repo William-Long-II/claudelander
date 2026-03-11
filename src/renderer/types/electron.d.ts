@@ -24,6 +24,7 @@ import {
   ChatMessage,
   SessionTemplate,
   SessionTemplateCreateInput,
+  ConversationBranch,
 } from '../../shared/types';
 
 interface StateChangeEvent {
@@ -182,6 +183,17 @@ export interface ElectronAPI {
   templatesGetAll: () => Promise<SessionTemplate[]>;
   templatesCreate: (input: SessionTemplateCreateInput) => Promise<SessionTemplate>;
   templatesDelete: (id: string) => Promise<boolean>;
+
+  // Conversation Branches
+  branchesGetBySession: (sessionId: string) => Promise<ConversationBranch[]>;
+  branchesCreate: (input: {
+    id: string;
+    sessionId: string;
+    parentBranchId?: string;
+    forkMessageId: string;
+    name?: string;
+  }) => Promise<ConversationBranch>;
+  branchesDelete: (id: string) => Promise<boolean>;
 
   // Claude Session API (3.0)
   claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) => Promise<void>;

@@ -8,6 +8,7 @@ import * as prefsRepo from './repositories/preferences';
 import * as memoriesRepo from './repositories/memories';
 import * as chatMessagesRepo from './repositories/chat-messages';
 import * as templatesRepo from './repositories/session-templates';
+import * as branchesRepo from './repositories/conversation-branches';
 import { StateMonitor } from './state-monitor';
 import { createApplicationMenu } from './menu';
 import { initAutoUpdater, checkForUpdatesManual, downloadUpdate } from './auto-updater';
@@ -676,6 +677,19 @@ safeHandle('templates:create', (input: any) => {
 
 safeHandle('templates:delete', (id: string) => {
   return templatesRepo.deleteSessionTemplate(id);
+});
+
+// Conversation Branches IPC Handlers
+safeHandle('branches:getBySession', (sessionId: string) => {
+  return branchesRepo.getBranchesBySession(sessionId);
+});
+
+safeHandle('branches:create', (input: any) => {
+  return branchesRepo.createBranch(input);
+});
+
+safeHandle('branches:delete', (id: string) => {
+  return branchesRepo.deleteBranch(id);
 });
 
 // Preferences IPC Handlers
