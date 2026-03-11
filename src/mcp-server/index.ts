@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 /**
- * ClaudeLander Memory MCP Server
+ * ClaudeLander Knowledge MCP Server
  *
- * Provides Claude with tools to access and manage session memories and code search.
+ * Provides Claude with tools to access and manage the knowledge graph and code search.
  * Communicates with ClaudeLander via HTTP API (no native dependencies).
  *
  * Run as: node dist/mcp-server/index.js
  *
- * Memory Tools:
- * - search_memories: Search for memories by query
- * - add_memory: Add a new memory
- * - list_memories: List recent memories
- * - delete_memory: Delete a memory
- * - pin_memory: Pin/unpin a memory
+ * Knowledge Tools:
+ * - search_knowledge: FTS search for knowledge nodes
+ * - add_knowledge: Create a new knowledge node
+ * - get_related: Get edges and connected nodes for a knowledge node
+ * - promote_knowledge: Promote a node to a higher tier
+ * - list_knowledge: List knowledge nodes with filters
+ * - delete_knowledge: Delete a knowledge node
+ * - pin_knowledge: Pin/unpin a knowledge node (boost/reduce confidence)
  * - list_groups: List available groups
  *
  * Code Search Tools:
@@ -29,20 +31,40 @@ import { z } from 'zod';
 
 // ClaudeLander API configuration
 const API_BASE = process.env.CLAUDELANDER_API_URL || 'http://127.0.0.1:8443';
-const API_PREFIX = '/api/v1/memories';
+const API_PREFIX = '/api/v1/knowledge';
 
 // Types
-interface Memory {
+interface KnowledgeNode {
   id: string;
-  sessionId: string | null;
-  groupId: string;
-  type: string;
+  tier: 1 | 2 | 3;
   content: string;
+  confidence: number;
   source: string;
+  scopeSessionId: string | null;
+  scopeGroupId: string | null;
+  domains: string[];
   tags: string[];
-  pinned: boolean;
   createdAt: string;
-  updatedAt: string | null;
+  lastReinforcedAt: string;
+}
+
+interface KnowledgeEdge {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  relationship: string;
+  weight: number;
+  createdAt: string;
+}
+
+interface KnowledgePromotion {
+  id: string;
+  nodeId: string;
+  fromTier: number;
+  toTier: number;
+  trigger: string;
+  evidence: string[];
+  promotedAt: string;
 }
 
 interface Group {
@@ -97,52 +119,76 @@ async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-// Memory operations via API
-async function searchMemories(
+// Knowledge operations via API
+async function searchKnowledge(
   query: string,
-  groupId?: string,
-  type?: string,
+  domains?: string[],
+  tier?: number,
   limit: number = 20
-): Promise<Memory[]> {
+): Promise<KnowledgeNode[]> {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
-  if (groupId) params.set('group_id', groupId);
-  if (type) params.set('type', type);
+  if (domains && domains.length > 0) params.set('domain', domains[0]);
+  if (tier) params.set('tier', String(tier));
 
-  const result = await apiGet<{ memories: Memory[] }>(`/search?${params}`);
-  return result.memories;
+  const result = await apiGet<{ nodes: KnowledgeNode[] }>(`/search?${params}`);
+  return result.nodes;
 }
 
-async function addMemory(
+async function addKnowledge(
   content: string,
-  type: string,
-  groupId: string,
-  sessionId?: string,
+  tier: number,
+  domains: string[],
+  groupId?: string,
   tags?: string[]
-): Promise<Memory> {
-  const result = await apiPost<{ memory: Memory }>('/', {
+): Promise<KnowledgeNode> {
+  const result = await apiPost<{ node: KnowledgeNode }>('/', {
     content,
-    type,
+    tier,
+    domains,
     group_id: groupId,
-    session_id: sessionId,
     tags,
   });
-  return result.memory;
+  return result.node;
 }
 
-async function listMemories(
+async function getRelated(
+  nodeId: string,
+  relationship?: string,
+  limit: number = 20
+): Promise<{ edges: KnowledgeEdge[]; nodes: KnowledgeNode[] }> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (relationship) params.set('relationship', relationship);
+
+  return apiGet<{ edges: KnowledgeEdge[]; nodes: KnowledgeNode[] }>(`/${nodeId}/related?${params}`);
+}
+
+async function promoteKnowledge(
+  nodeId: string,
+  toTier: number,
+  evidence?: string[]
+): Promise<{ success: boolean; promotion: KnowledgePromotion }> {
+  return apiPost<{ success: boolean; promotion: KnowledgePromotion }>(`/${nodeId}/promote`, {
+    to_tier: toTier,
+    evidence: evidence || [],
+  });
+}
+
+async function listKnowledge(
   groupId?: string,
-  type?: string,
+  tier?: number,
+  domains?: string[],
   limit: number = 50
-): Promise<Memory[]> {
+): Promise<KnowledgeNode[]> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (groupId) params.set('group_id', groupId);
-  if (type) params.set('type', type);
+  if (tier) params.set('tier', String(tier));
+  if (domains && domains.length > 0) params.set('domain', domains[0]);
 
-  const result = await apiGet<{ memories: Memory[] }>(`?${params}`);
-  return result.memories;
+  const result = await apiGet<{ nodes: KnowledgeNode[] }>(`?${params}`);
+  return result.nodes;
 }
 
-async function deleteMemory(id: string): Promise<boolean> {
+async function deleteKnowledge(id: string): Promise<boolean> {
   try {
     await apiDelete(`/${id}`);
     return true;
@@ -151,7 +197,7 @@ async function deleteMemory(id: string): Promise<boolean> {
   }
 }
 
-async function pinMemory(id: string, pinned: boolean): Promise<boolean> {
+async function pinKnowledge(id: string, pinned: boolean): Promise<boolean> {
   try {
     await apiPatch(`/${id}/pin`, { pinned });
     return true;
@@ -163,6 +209,27 @@ async function pinMemory(id: string, pinned: boolean): Promise<boolean> {
 async function getGroups(): Promise<Group[]> {
   const result = await apiGet<{ groups: Group[] }>('/groups');
   return result.groups;
+}
+
+// Helper to format tier label
+function tierLabel(tier: number): string {
+  switch (tier) {
+    case 1: return 'T1-Session';
+    case 2: return 'T2-Project';
+    case 3: return 'T3-Global';
+    default: return `T${tier}`;
+  }
+}
+
+// Helper to format a knowledge node for display
+function formatNode(n: KnowledgeNode): string {
+  const parts = [
+    `[${tierLabel(n.tier)}] ${n.content}`,
+    `  ID: ${n.id} | Confidence: ${n.confidence.toFixed(2)} | Source: ${n.source}`,
+  ];
+  if (n.domains.length > 0) parts.push(`  Domains: ${n.domains.join(', ')}`);
+  if (n.tags.length > 0) parts.push(`  Tags: ${n.tags.join(', ')}`);
+  return parts.join('\n');
 }
 
 // Check if ClaudeLander is running
@@ -180,165 +247,236 @@ async function main() {
   // Check if ClaudeLander is running
   const isConnected = await checkConnection();
   if (!isConnected) {
-    console.error('[MCP Memory] Warning: ClaudeLander is not running. Memory tools will not work until ClaudeLander is started.');
+    console.error('[MCP Knowledge] Warning: ClaudeLander is not running. Knowledge tools will not work until ClaudeLander is started.');
   } else {
-    console.error('[MCP Memory] Connected to ClaudeLander API');
+    console.error('[MCP Knowledge] Connected to ClaudeLander API');
   }
 
   // Create MCP server
   const server = new McpServer({
-    name: 'claudelander-memory',
-    version: '1.0.0',
+    name: 'claudelander-knowledge',
+    version: '2.0.0',
   });
 
-  // Register search_memories tool
+  // ── Knowledge Tools ─────────────────────────────────────────────────────────
+
+  // Register search_knowledge tool
   server.registerTool(
-    'search_memories',
+    'search_knowledge',
     {
-      title: 'Search Memories',
-      description: 'Search for memories by keyword or phrase. Use this to find relevant context from past sessions. Requires ClaudeLander to be running.',
+      title: 'Search Knowledge',
+      description: 'Search the knowledge graph by keyword or phrase using full-text search. Returns knowledge nodes ranked by confidence. Use this to find relevant context from past sessions and established patterns. Requires ClaudeLander to be running.',
       inputSchema: {
-        query: z.string().describe('Search query - keywords or phrases to find in memories'),
-        group_id: z.string().optional().describe('Filter by group ID. Use list_groups to see available groups.'),
-        type: z.enum(['decision', 'error_fix', 'pattern', 'context', 'note']).optional().describe('Filter by memory type'),
+        query: z.string().describe('Search query - keywords or phrases to find in knowledge nodes'),
+        domains: z.array(z.string()).optional().describe('Filter by domain(s), e.g. ["typescript", "react"]'),
+        tier: z.number().min(1).max(3).optional().describe('Filter by tier: 1=session, 2=project, 3=global'),
         limit: z.number().optional().default(20).describe('Maximum results to return'),
       },
     },
-    async ({ query, group_id, type, limit }) => {
+    async ({ query, domains, tier, limit }) => {
       try {
-        const memories = await searchMemories(query, group_id, type, limit || 20);
-        const text = memories.length > 0
-          ? `Found ${memories.length} memories:\n\n${memories
-              .map(m => `[${m.type}] ${m.content}${m.pinned ? ' (pinned)' : ''}\n  ID: ${m.id} | Created: ${m.createdAt}`)
-              .join('\n\n')}`
-          : 'No memories found matching your query.';
+        const nodes = await searchKnowledge(query, domains, tier, limit || 20);
+        const text = nodes.length > 0
+          ? `Found ${nodes.length} knowledge nodes:\n\n${nodes.map(formatNode).join('\n\n')}`
+          : 'No knowledge nodes found matching your query.';
         return { content: [{ type: 'text', text }] };
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        return { content: [{ type: 'text', text: `Error searching memories: ${msg}. Is ClaudeLander running?` }] };
+        return { content: [{ type: 'text', text: `Error searching knowledge: ${msg}. Is ClaudeLander running?` }] };
       }
     }
   );
 
-  // Register add_memory tool
+  // Register add_knowledge tool
   server.registerTool(
-    'add_memory',
+    'add_knowledge',
     {
-      title: 'Add Memory',
-      description: 'Store a new memory for future reference. Use this to save important decisions, fixes, patterns, or context. Requires ClaudeLander to be running.',
+      title: 'Add Knowledge',
+      description: 'Store a new knowledge node in the knowledge graph. Knowledge is organized into 3 tiers: Tier 1 (session-scoped, ephemeral), Tier 2 (project-level, persists across sessions), Tier 3 (global, highest confidence). Requires ClaudeLander to be running.',
       inputSchema: {
-        content: z.string().describe('The content of the memory to store'),
-        type: z.enum(['decision', 'error_fix', 'pattern', 'context', 'note']).describe('Type of memory'),
-        group_id: z.string().describe('Group ID to associate the memory with. Use list_groups to see available groups.'),
-        session_id: z.string().optional().describe('Session ID to associate with'),
+        content: z.string().describe('The content of the knowledge to store'),
+        tier: z.number().min(1).max(3).describe('Knowledge tier: 1=session (ephemeral), 2=project (persistent), 3=global (established)'),
+        domains: z.array(z.string()).describe('Domains this knowledge belongs to, e.g. ["typescript", "error-handling", "react"]'),
+        group_id: z.string().optional().describe('Group ID to scope the knowledge to. Use list_groups to see available groups.'),
         tags: z.array(z.string()).optional().describe('Tags for categorization'),
       },
     },
-    async ({ content, type, group_id, session_id, tags }) => {
+    async ({ content, tier, domains, group_id, tags }) => {
       try {
-        const memory = await addMemory(content, type, group_id, session_id, tags);
+        const node = await addKnowledge(content, tier, domains, group_id, tags);
         return {
           content: [{
             type: 'text',
-            text: `Memory stored successfully!\nID: ${memory.id}\nType: ${memory.type}\nContent: ${memory.content}`,
+            text: `Knowledge stored successfully!\n${formatNode(node)}`,
           }],
         };
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        return { content: [{ type: 'text', text: `Error adding memory: ${msg}. Is ClaudeLander running?` }] };
+        return { content: [{ type: 'text', text: `Error adding knowledge: ${msg}. Is ClaudeLander running?` }] };
       }
     }
   );
 
-  // Register list_memories tool
+  // Register get_related tool
   server.registerTool(
-    'list_memories',
+    'get_related',
     {
-      title: 'List Memories',
-      description: 'List recent memories, optionally filtered by group or type. Requires ClaudeLander to be running.',
+      title: 'Get Related Knowledge',
+      description: 'Get knowledge nodes connected to a given node via edges in the knowledge graph. Returns both the edges (relationships) and the connected nodes. Useful for exploring how knowledge is linked. Requires ClaudeLander to be running.',
       inputSchema: {
-        group_id: z.string().optional().describe('Filter by group ID'),
-        type: z.enum(['decision', 'error_fix', 'pattern', 'context', 'note']).optional().describe('Filter by memory type'),
-        limit: z.number().optional().default(50).describe('Maximum results to return'),
+        node_id: z.string().describe('The ID of the knowledge node to find relations for'),
+        relationship: z.enum(['derived_from', 'supports', 'contradicts', 'relates_to', 'applied_in', 'same_domain']).optional()
+          .describe('Filter by relationship type'),
+        limit: z.number().optional().default(20).describe('Maximum related nodes to return'),
       },
     },
-    async ({ group_id, type, limit }) => {
+    async ({ node_id, relationship, limit }) => {
       try {
-        const memories = await listMemories(group_id, type, limit || 50);
-        const text = memories.length > 0
-          ? `Found ${memories.length} memories:\n\n${memories
-              .map(m => `[${m.type}] ${m.content}${m.pinned ? ' (pinned)' : ''}\n  ID: ${m.id} | Group: ${m.groupId} | Created: ${m.createdAt}`)
-              .join('\n\n')}`
-          : 'No memories found.';
+        const { edges, nodes } = await getRelated(node_id, relationship, limit || 20);
+
+        if (nodes.length === 0) {
+          return { content: [{ type: 'text', text: `No related knowledge nodes found for ${node_id}.` }] };
+        }
+
+        const edgesSummary = edges.map(e => {
+          const direction = e.sourceId === node_id ? '->' : '<-';
+          const otherId = e.sourceId === node_id ? e.targetId : e.sourceId;
+          return `  ${direction} [${e.relationship}] ${otherId} (weight: ${e.weight.toFixed(2)})`;
+        }).join('\n');
+
+        const nodesSummary = nodes.map(formatNode).join('\n\n');
+
+        const text = `Edges (${edges.length}):\n${edgesSummary}\n\nConnected Nodes (${nodes.length}):\n\n${nodesSummary}`;
         return { content: [{ type: 'text', text }] };
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        return { content: [{ type: 'text', text: `Error listing memories: ${msg}. Is ClaudeLander running?` }] };
+        return { content: [{ type: 'text', text: `Error getting related knowledge: ${msg}. Is ClaudeLander running?` }] };
       }
     }
   );
 
-  // Register delete_memory tool
+  // Register promote_knowledge tool
   server.registerTool(
-    'delete_memory',
+    'promote_knowledge',
     {
-      title: 'Delete Memory',
-      description: 'Delete a memory by ID. Requires ClaudeLander to be running.',
+      title: 'Promote Knowledge',
+      description: 'Promote a knowledge node to a higher tier. Tier 1 -> Tier 2 means the knowledge has proven useful across sessions. Tier 2 -> Tier 3 means it is established global knowledge. Promotion is logged for auditing. Requires ClaudeLander to be running.',
       inputSchema: {
-        id: z.string().describe('The ID of the memory to delete'),
+        node_id: z.string().describe('The ID of the knowledge node to promote'),
+        to_tier: z.number().min(2).max(3).describe('Target tier: 2=project, 3=global. Must be higher than current tier.'),
+        evidence: z.array(z.string()).optional().describe('Evidence supporting the promotion, e.g. ["Used in 5 sessions", "Confirmed by user"]'),
+      },
+    },
+    async ({ node_id, to_tier, evidence }) => {
+      try {
+        const { promotion } = await promoteKnowledge(node_id, to_tier, evidence);
+        return {
+          content: [{
+            type: 'text',
+            text: `Knowledge promoted successfully!\n` +
+              `Node: ${promotion.nodeId}\n` +
+              `${tierLabel(promotion.fromTier)} -> ${tierLabel(promotion.toTier)}\n` +
+              `Trigger: ${promotion.trigger}` +
+              (promotion.evidence.length > 0 ? `\nEvidence: ${promotion.evidence.join('; ')}` : ''),
+          }],
+        };
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        return { content: [{ type: 'text', text: `Error promoting knowledge: ${msg}. Is ClaudeLander running?` }] };
+      }
+    }
+  );
+
+  // Register list_knowledge tool
+  server.registerTool(
+    'list_knowledge',
+    {
+      title: 'List Knowledge',
+      description: 'List knowledge nodes with optional filters. Returns nodes sorted by confidence. Requires ClaudeLander to be running.',
+      inputSchema: {
+        group_id: z.string().optional().describe('Filter by group ID'),
+        tier: z.number().min(1).max(3).optional().describe('Filter by tier: 1=session, 2=project, 3=global'),
+        domains: z.array(z.string()).optional().describe('Filter by domain(s)'),
+        limit: z.number().optional().default(50).describe('Maximum results to return'),
+      },
+    },
+    async ({ group_id, tier, domains, limit }) => {
+      try {
+        const nodes = await listKnowledge(group_id, tier, domains, limit || 50);
+        const text = nodes.length > 0
+          ? `Found ${nodes.length} knowledge nodes:\n\n${nodes.map(formatNode).join('\n\n')}`
+          : 'No knowledge nodes found.';
+        return { content: [{ type: 'text', text }] };
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        return { content: [{ type: 'text', text: `Error listing knowledge: ${msg}. Is ClaudeLander running?` }] };
+      }
+    }
+  );
+
+  // Register delete_knowledge tool
+  server.registerTool(
+    'delete_knowledge',
+    {
+      title: 'Delete Knowledge',
+      description: 'Delete a knowledge node by ID. This also removes associated edges. Requires ClaudeLander to be running.',
+      inputSchema: {
+        id: z.string().describe('The ID of the knowledge node to delete'),
       },
     },
     async ({ id }) => {
       try {
-        const success = await deleteMemory(id);
+        const success = await deleteKnowledge(id);
         return {
           content: [{
             type: 'text',
-            text: success ? `Memory ${id} deleted successfully.` : `Memory ${id} not found.`,
+            text: success ? `Knowledge node ${id} deleted successfully.` : `Knowledge node ${id} not found.`,
           }],
         };
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        return { content: [{ type: 'text', text: `Error deleting memory: ${msg}. Is ClaudeLander running?` }] };
+        return { content: [{ type: 'text', text: `Error deleting knowledge: ${msg}. Is ClaudeLander running?` }] };
       }
     }
   );
 
-  // Register pin_memory tool
+  // Register pin_knowledge tool
   server.registerTool(
-    'pin_memory',
+    'pin_knowledge',
     {
-      title: 'Pin Memory',
-      description: 'Pin or unpin a memory. Pinned memories appear first in listings. Requires ClaudeLander to be running.',
+      title: 'Pin Knowledge',
+      description: 'Pin or unpin a knowledge node. Pinning boosts confidence to 1.0 (maximum), making it appear first in search results and preventing confidence decay. Unpinning sets confidence to 0.5. Requires ClaudeLander to be running.',
       inputSchema: {
-        id: z.string().describe('The ID of the memory to pin/unpin'),
-        pinned: z.boolean().describe('True to pin, false to unpin'),
+        id: z.string().describe('The ID of the knowledge node to pin/unpin'),
+        pinned: z.boolean().describe('True to pin (confidence -> 1.0), false to unpin (confidence -> 0.5)'),
       },
     },
     async ({ id, pinned }) => {
       try {
-        const success = await pinMemory(id, pinned);
+        const success = await pinKnowledge(id, pinned);
         return {
           content: [{
             type: 'text',
             text: success
-              ? `Memory ${id} ${pinned ? 'pinned' : 'unpinned'} successfully.`
-              : `Memory ${id} not found.`,
+              ? `Knowledge node ${id} ${pinned ? 'pinned (confidence set to 1.0)' : 'unpinned (confidence set to 0.5)'}.`
+              : `Knowledge node ${id} not found.`,
           }],
         };
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        return { content: [{ type: 'text', text: `Error updating memory: ${msg}. Is ClaudeLander running?` }] };
+        return { content: [{ type: 'text', text: `Error updating knowledge: ${msg}. Is ClaudeLander running?` }] };
       }
     }
   );
+
+  // ── Group Tool ──────────────────────────────────────────────────────────────
 
   // Register list_groups tool
   server.registerTool(
     'list_groups',
     {
       title: 'List Groups',
-      description: 'List available memory groups. Groups organize memories by project/context. Requires ClaudeLander to be running.',
+      description: 'List available groups. Groups organize knowledge and sessions by project/context. Requires ClaudeLander to be running.',
       inputSchema: {},
     },
     async () => {
@@ -354,6 +492,8 @@ async function main() {
       }
     }
   );
+
+  // ── Code Search Tools ───────────────────────────────────────────────────────
 
   // Register search_code tool (semantic code search)
   server.registerTool(
@@ -579,7 +719,7 @@ async function main() {
         return {
           content: [{
             type: 'text',
-            text: `🚀 Indexing started for: ${path}\n\n` +
+            text: `Indexing started for: ${path}\n\n` +
               `Indexing runs in the background. This may take several minutes for large codebases.\n\n` +
               `Use get_index_status to check progress.\n` +
               `Once status is "ready", you can use search_code and find_symbol.`,
@@ -595,10 +735,10 @@ async function main() {
   // Connect via stdio
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('[MCP Memory] Server started');
+  console.error('[MCP Knowledge] Server started');
 }
 
 main().catch((err) => {
-  console.error('[MCP Memory] Fatal error:', err);
+  console.error('[MCP Knowledge] Fatal error:', err);
   process.exit(1);
 });
