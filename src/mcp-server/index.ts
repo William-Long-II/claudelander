@@ -188,21 +188,29 @@ async function listKnowledge(
   return result.nodes;
 }
 
-async function deleteKnowledge(id: string): Promise<boolean> {
+async function deleteKnowledge(id: string): Promise<{ success: boolean; notFound?: boolean }> {
   try {
     await apiDelete(`/${id}`);
-    return true;
-  } catch {
-    return false;
+    return { success: true };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('404') || msg.includes('not found')) {
+      return { success: false, notFound: true };
+    }
+    throw error; // Re-throw server errors
   }
 }
 
-async function pinKnowledge(id: string, pinned: boolean): Promise<boolean> {
+async function pinKnowledge(id: string, pinned: boolean): Promise<{ success: boolean; notFound?: boolean }> {
   try {
     await apiPatch(`/${id}/pin`, { pinned });
-    return true;
-  } catch {
-    return false;
+    return { success: true };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('404') || msg.includes('not found')) {
+      return { success: false, notFound: true };
+    }
+    throw error;
   }
 }
 
@@ -268,14 +276,14 @@ async function main() {
       description: 'Search the knowledge graph by keyword or phrase using full-text search. Returns knowledge nodes ranked by confidence. Use this to find relevant context from past sessions and established patterns. Requires ClaudeLander to be running.',
       inputSchema: {
         query: z.string().describe('Search query - keywords or phrases to find in knowledge nodes'),
-        domains: z.array(z.string()).optional().describe('Filter by domain(s), e.g. ["typescript", "react"]'),
+        domain: z.string().optional().describe('Filter by domain, e.g. "database", "auth", "frontend"'),
         tier: z.number().min(1).max(3).optional().describe('Filter by tier: 1=session, 2=project, 3=global'),
         limit: z.number().optional().default(20).describe('Maximum results to return'),
       },
     },
-    async ({ query, domains, tier, limit }) => {
+    async ({ query, domain, tier, limit }) => {
       try {
-        const nodes = await searchKnowledge(query, domains, tier, limit || 20);
+        const nodes = await searchKnowledge(query, domain ? [domain] : undefined, tier, limit || 20);
         const text = nodes.length > 0
           ? `Found ${nodes.length} knowledge nodes:\n\n${nodes.map(formatNode).join('\n\n')}`
           : 'No knowledge nodes found matching your query.';
@@ -396,13 +404,13 @@ async function main() {
       inputSchema: {
         group_id: z.string().optional().describe('Filter by group ID'),
         tier: z.number().min(1).max(3).optional().describe('Filter by tier: 1=session, 2=project, 3=global'),
-        domains: z.array(z.string()).optional().describe('Filter by domain(s)'),
+        domain: z.string().optional().describe('Filter by domain, e.g. "database", "auth", "frontend"'),
         limit: z.number().optional().default(50).describe('Maximum results to return'),
       },
     },
-    async ({ group_id, tier, domains, limit }) => {
+    async ({ group_id, tier, domain, limit }) => {
       try {
-        const nodes = await listKnowledge(group_id, tier, domains, limit || 50);
+        const nodes = await listKnowledge(group_id, tier, domain ? [domain] : undefined, limit || 50);
         const text = nodes.length > 0
           ? `Found ${nodes.length} knowledge nodes:\n\n${nodes.map(formatNode).join('\n\n')}`
           : 'No knowledge nodes found.';
@@ -426,11 +434,11 @@ async function main() {
     },
     async ({ id }) => {
       try {
-        const success = await deleteKnowledge(id);
+        const result = await deleteKnowledge(id);
         return {
           content: [{
             type: 'text',
-            text: success ? `Knowledge node ${id} deleted successfully.` : `Knowledge node ${id} not found.`,
+            text: result.success ? `Knowledge node ${id} deleted successfully.` : `Knowledge node ${id} not found.`,
           }],
         };
       } catch (error) {
@@ -453,11 +461,11 @@ async function main() {
     },
     async ({ id, pinned }) => {
       try {
-        const success = await pinKnowledge(id, pinned);
+        const result = await pinKnowledge(id, pinned);
         return {
           content: [{
             type: 'text',
-            text: success
+            text: result.success
               ? `Knowledge node ${id} ${pinned ? 'pinned (confidence set to 1.0)' : 'unpinned (confidence set to 0.5)'}.`
               : `Knowledge node ${id} not found.`,
           }],

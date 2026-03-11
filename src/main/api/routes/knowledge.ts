@@ -28,6 +28,11 @@ function localhostOnly(req: Request, res: Response, next: () => void): void {
   next();
 }
 
+function safeParseInt(value: string, defaultValue: number): number {
+  const parsed = parseInt(value, 10);
+  return Number.isNaN(parsed) || parsed < 1 ? defaultValue : parsed;
+}
+
 export function createKnowledgeRouter(): Router {
   const router = Router();
 
@@ -41,7 +46,7 @@ export function createKnowledgeRouter(): Router {
   router.get('/', (req: Request, res: Response) => {
     try {
       const { group_id, tier, domain, limit } = req.query;
-      const maxResults = limit ? parseInt(limit as string, 10) : 50;
+      const maxResults = limit ? safeParseInt(limit as string, 50) : 50;
 
       let nodes;
 
@@ -93,7 +98,7 @@ export function createKnowledgeRouter(): Router {
         return;
       }
 
-      const maxResults = limit ? parseInt(limit as string, 10) : 20;
+      const maxResults = limit ? safeParseInt(limit as string, 20) : 20;
       let nodes = knowledgeRepo.searchKnowledgeNodes(q as string, maxResults);
 
       // Apply optional filters
@@ -128,6 +133,16 @@ export function createKnowledgeRouter(): Router {
       // Validate tier
       if (![1, 2, 3].includes(tier)) {
         res.status(400).json({ error: 'tier must be 1, 2, or 3' });
+        return;
+      }
+
+      // Validate domains and tags are arrays of strings if provided
+      if (domains !== undefined && (!Array.isArray(domains) || !domains.every((d: unknown) => typeof d === 'string'))) {
+        res.status(400).json({ error: 'domains must be an array of strings' });
+        return;
+      }
+      if (tags !== undefined && (!Array.isArray(tags) || !tags.every((t: unknown) => typeof t === 'string'))) {
+        res.status(400).json({ error: 'tags must be an array of strings' });
         return;
       }
 
@@ -210,7 +225,7 @@ export function createKnowledgeRouter(): Router {
     try {
       const id = getStringParam(req.params.id);
       const { relationship, limit } = req.query;
-      const maxResults = limit ? parseInt(limit as string, 10) : 20;
+      const maxResults = limit ? safeParseInt(limit as string, 20) : 20;
 
       const existing = knowledgeRepo.getKnowledgeNode(id);
       if (!existing) {
@@ -265,8 +280,8 @@ export function createKnowledgeRouter(): Router {
         return;
       }
 
-      if (![1, 2, 3].includes(to_tier)) {
-        res.status(400).json({ error: 'to_tier must be 1, 2, or 3' });
+      if (![2, 3].includes(to_tier)) {
+        res.status(400).json({ error: 'to_tier must be 2 or 3 (promotion target)' });
         return;
       }
 
