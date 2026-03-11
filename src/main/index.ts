@@ -1,6 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import * as path from 'path';
-import { ptyManager } from './pty-manager';
 import { getDatabase, closeDatabase } from './database';
 import * as groupsRepo from './repositories/groups';
 import * as sessionsRepo from './repositories/sessions';
@@ -11,7 +10,6 @@ import * as templatesRepo from './repositories/session-templates';
 import * as branchesRepo from './repositories/conversation-branches';
 import * as knowledgeRepo from './repositories/knowledge';
 import { randomUUID } from 'crypto';
-import { StateMonitor } from './state-monitor';
 import { createApplicationMenu } from './menu';
 import { initAutoUpdater, checkForUpdatesManual, downloadUpdate } from './auto-updater';
 import { notificationManager } from './notification-manager';
@@ -56,7 +54,6 @@ if (process.platform === 'win32') {
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
-let stateMonitor: StateMonitor | null = null;
 let isQuitting = false;
 
 // Register deep link protocol
@@ -269,25 +266,6 @@ function createWindow(): void {
   // Mark all sessions as stopped on startup (PTY processes don't survive restarts)
   sessionsRepo.markAllSessionsStopped();
 
-  // Start state monitor
-  stateMonitor = new StateMonitor(ptyManager.getSocketPath());
-  stateMonitor.start();
-
-  stateMonitor.on('stateChange', (event) => {
-    mainWindow?.webContents.send('state:change', event);
-    // Update database with error handling
-    try {
-      sessionsRepo.updateSession(event.sessionId, {
-        state: event.state,
-        lastActivityAt: new Date(),
-      });
-    } catch (error) {
-      console.error('Failed to update session state in database:', error);
-    }
-    // Handle notifications and tray updates
-    handleStateChange(event.sessionId, event.state);
-  });
-
   // Restore saved window bounds or use defaults
   const savedBounds = prefsRepo.getWindowBounds();
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
@@ -370,35 +348,6 @@ function createWindow(): void {
 
   vsManager.on('indexing-error', (data) => {
     mainWindow?.webContents.send('vector-search:error', data);
-  });
-
-  // PTY data forwarding
-  ptyManager.on('data', ({ id, data }) => {
-    mainWindow?.webContents.send('pty:data', id, data);
-    // Broadcast to mobile clients
-    getApiServer().broadcastTerminalData(id, data);
-  });
-
-  ptyManager.on('exit', ({ id, exitCode }) => {
-    mainWindow?.webContents.send('pty:exit', id, exitCode);
-  });
-
-  // PTY state detection forwarding
-  ptyManager.on('stateChange', (event) => {
-    mainWindow?.webContents.send('state:change', event);
-    // Update database
-    try {
-      sessionsRepo.updateSession(event.sessionId, {
-        state: event.state,
-        lastActivityAt: new Date(),
-      });
-    } catch (error) {
-      console.error('Failed to update session state in database:', error);
-    }
-    // Handle notifications and tray updates
-    handleStateChange(event.sessionId, event.state);
-    // Broadcast to mobile clients
-    getApiServer().broadcastSessionState(event.sessionId, event.state, event.event);
   });
 
   // Claude session event forwarding (3.0)
@@ -496,39 +445,6 @@ function safeOn(channel: string, handler: (...args: any[]) => void): void {
     }
   });
 }
-
-// IPC Handlers
-ipcMain.handle('pty:create', async (_, id: string, cwd: string, launchClaude: boolean = false) => {
-  try {
-    // Look up the session to get its groupId for memory injection
-    const sessions = sessionsRepo.getAllSessions();
-    const session = sessions.find(s => s.id === id);
-    const groupId = session?.groupId || null;
-
-    ptyManager.createSession(id, cwd, launchClaude, groupId);
-    // Play session start sound
-    soundManager.playStartSound();
-  } catch (error) {
-    log.error('[Main] Failed to create PTY session:', error);
-    throw error; // Re-throw so renderer knows it failed
-  }
-});
-
-safeOn('pty:write', (id: string, data: string) => {
-  ptyManager.write(id, data);
-});
-
-safeOn('pty:resize', (id: string, cols: number, rows: number) => {
-  ptyManager.resize(id, cols, rows);
-});
-
-safeOn('pty:kill', (id: string) => {
-  // Stop sharing if this session was being shared
-  shareManager.stopSharing(id).catch(() => {
-    // Ignore errors - session may not have been shared
-  });
-  ptyManager.kill(id);
-});
 
 // ============================================================================
 // Claude Session IPC Handlers (3.0 — replaces PTY)
@@ -772,6 +688,11 @@ safeHandle('prefs:getAll', () => {
     soundStartCustomPath: prefsRepo.getPreference('soundStartCustomPath') ?? '',
     soundCompleteEnabled: prefsRepo.getPreference('soundCompleteEnabled') ?? 'true',
     soundCompleteCustomPath: prefsRepo.getPreference('soundCompleteCustomPath') ?? '',
+    // Chat mode settings (3.0)
+    sendShortcut: prefsRepo.getPreference('sendShortcut') ?? 'ctrl+enter',
+    chatFontSize: prefsRepo.getPreference('chatFontSize') ?? '14',
+    showThinking: prefsRepo.getPreference('showThinking') ?? 'true',
+    knowledgePanelOpen: prefsRepo.getPreference('knowledgePanelOpen') ?? 'false',
   };
   return settings;
 });
@@ -1235,12 +1156,6 @@ app.on('before-quit', (event) => {
     }
 
     try {
-      await ptyManager.killAll();
-    } catch (e) {
-      log.error('Error killing PTYs on quit:', e);
-    }
-
-    try {
       await claudeSessionManager.killAll();
     } catch (e) {
       log.error('Error killing Claude sessions on quit:', e);
@@ -1248,7 +1163,6 @@ app.on('before-quit', (event) => {
 
     disposeVectorSearchManager();
     trayManager.destroy();
-    stateMonitor?.stop();
     closeDatabase();
 
     cleanupComplete = true;

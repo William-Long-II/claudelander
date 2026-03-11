@@ -3,6 +3,7 @@ import * as path from 'path';
 import { app } from 'electron';
 import log from 'electron-log';
 import { initKnowledgeGraphTables } from './database-knowledge';
+import { migrateMemoriesToKnowledge } from './migration/memory-to-knowledge';
 
 let db: Database.Database | null = null;
 let sqliteVecAvailable = false;
@@ -52,6 +53,33 @@ export function getDatabase(): Database.Database {
   initializeTables(db);
   initializeCodeSearchTables(db);
   initKnowledgeGraphTables(db);
+
+  // Run one-time memory-to-knowledge migration if needed
+  try {
+    const knowledgeCount = db.prepare('SELECT COUNT(*) as count FROM knowledge_nodes').get() as { count: number };
+    const memoriesTableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='memories'").get();
+
+    if (knowledgeCount.count === 0 && memoriesTableExists) {
+      const memoryCount = db.prepare('SELECT COUNT(*) as count FROM memories').get() as { count: number };
+      if (memoryCount.count > 0) {
+        log.info('[Database] Migrating memories to knowledge nodes...');
+        const result = migrateMemoriesToKnowledge();
+        log.info(`[Database] Migration complete: ${result.migrated} nodes created, ${result.skipped} skipped`);
+      }
+    }
+  } catch (error) {
+    log.error('[Database] Memory migration check failed:', error);
+  }
+
+  // Reset any non-idle session states from terminal era
+  try {
+    const result = db.prepare("UPDATE sessions SET state = 'idle' WHERE state NOT IN ('idle')").run();
+    if (result.changes > 0) {
+      log.info(`[Database] Reset ${result.changes} non-idle sessions to idle (3.0 migration)`);
+    }
+  } catch (error) {
+    log.error('[Database] Session state reset failed:', error);
+  }
 
   return db;
 }
