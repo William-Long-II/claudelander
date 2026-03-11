@@ -21,6 +21,9 @@ import {
   SymbolType,
   SessionStatus,
   ClaudeJsonEvent,
+  ChatMessage,
+  SessionTemplate,
+  SessionTemplateCreateInput,
 } from '../../shared/types';
 
 interface StateChangeEvent {
@@ -81,6 +84,9 @@ export interface ElectronAPI {
   getMemoryById: (id: string) => Promise<Memory | null>;
   getGlobalContextMemories: () => Promise<Memory[]>;
   onMemoryExtracted: (callback: (memory: Memory) => void) => () => void;
+
+  // Chat Messages
+  chatSearchMessages: (query: string, sessionId?: string, limit?: number) => Promise<ChatMessage[]>;
 
   // Preferences
   getPreference: (key: string) => Promise<string | null>;
@@ -171,6 +177,11 @@ export interface ElectronAPI {
   openInEditor: (filePath: string, line?: number, column?: number) => Promise<{ success: boolean; error?: string }>;
   detectAvailableEditors: () => Promise<string[]>;
   getEditorOptions: () => Promise<{ value: string; label: string }[]>;
+
+  // Session Templates
+  templatesGetAll: () => Promise<SessionTemplate[]>;
+  templatesCreate: (input: SessionTemplateCreateInput) => Promise<SessionTemplate>;
+  templatesDelete: (id: string) => Promise<boolean>;
 
   // Claude Session API (3.0)
   claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) => Promise<void>;

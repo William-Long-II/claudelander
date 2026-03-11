@@ -9,6 +9,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { NewItemChoice } from './components/NewItemChoice';
 import { MemoryPanel } from './components/panels/MemoryPanel';
 import { CodeSearchModal } from './components/CodeSearchModal';
+import { SearchModal } from './components/SearchModal';
 import { useSessions } from './store/sessions';
 import { useGroups } from './store/groups';
 import { useSharing } from './store/sharing';
@@ -94,6 +95,9 @@ const App: React.FC = () => {
 
   // Code search modal state
   const [codeSearchOpen, setCodeSearchOpen] = useState(false);
+
+  // Chat search modal state
+  const [chatSearchOpen, setChatSearchOpen] = useState(false);
 
   // Destructive action confirmation state
   const [confirmAction, setConfirmAction] = useState<{
@@ -721,6 +725,10 @@ const App: React.FC = () => {
     setCodeSearchOpen(true);
   }, []);
 
+  const handleChatSearch = useCallback(() => {
+    setChatSearchOpen(true);
+  }, []);
+
   const shortcutHandlers = useMemo(() => ({
     onNewSession: handleKeyboardNewSession,
     onNextSession: handleNextSession,
@@ -736,7 +744,8 @@ const App: React.FC = () => {
     onExpand: handleExpand,
     onSelect: handleSelect,
     onCodeSearch: handleCodeSearch,
-  }), [handleKeyboardNewSession, handleNextSession, handlePrevSession, handleNextWaiting, handleCloseSession, handleFocusSidebar, handleNewGroup, handleNewSubGroup, handleNavigateUp, handleNavigateDown, handleCollapse, handleExpand, handleSelect, handleCodeSearch]);
+    onChatSearch: handleChatSearch,
+  }), [handleKeyboardNewSession, handleNextSession, handlePrevSession, handleNextWaiting, handleCloseSession, handleFocusSidebar, handleNewGroup, handleNewSubGroup, handleNavigateUp, handleNavigateDown, handleCollapse, handleExpand, handleSelect, handleCodeSearch, handleChatSearch]);
 
   useKeyboardShortcuts(shortcutHandlers);
 
@@ -844,6 +853,14 @@ const App: React.FC = () => {
               aria-label="Code Search"
             >
               🔍
+            </button>
+            <button
+              className="icon-button"
+              onClick={() => setChatSearchOpen(true)}
+              title="Chat Search (Ctrl+Shift+H)"
+              aria-label="Chat Search"
+            >
+              💬
             </button>
             <button
               className="icon-button"
@@ -1482,6 +1499,16 @@ const App: React.FC = () => {
         isOpen={codeSearchOpen}
         directoryPath={activeSession?.workingDir || null}
         onClose={() => setCodeSearchOpen(false)}
+      />
+
+      {/* Chat Search modal */}
+      <SearchModal
+        isOpen={chatSearchOpen}
+        onClose={() => setChatSearchOpen(false)}
+        onNavigate={(sessionId) => {
+          setActiveSessionId(sessionId);
+        }}
+        sessions={sessions}
       />
 
       {/* Destructive action confirmation dialog */}

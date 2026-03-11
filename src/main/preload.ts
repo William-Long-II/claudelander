@@ -128,6 +128,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('memory:extracted', listener);
   },
 
+  // Chat Messages
+  chatSearchMessages: (query: string, sessionId?: string, limit?: number) =>
+    ipcRenderer.invoke('chat:searchMessages', query, sessionId, limit),
+
   // Preferences
   getPreference: (key: string): Promise<string | null> =>
     ipcRenderer.invoke('prefs:get', key),
@@ -304,6 +308,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   getEditorOptions: (): Promise<{ value: string; label: string }[]> =>
     ipcRenderer.invoke('editor:getOptions'),
+
+  // Session Templates
+  templatesGetAll: (): Promise<any[]> =>
+    ipcRenderer.invoke('templates:getAll'),
+  templatesCreate: (input: any): Promise<any> =>
+    ipcRenderer.invoke('templates:create', input),
+  templatesDelete: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('templates:delete', id),
 
   // Claude Session API (3.0)
   claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) =>

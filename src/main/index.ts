@@ -6,6 +6,8 @@ import * as groupsRepo from './repositories/groups';
 import * as sessionsRepo from './repositories/sessions';
 import * as prefsRepo from './repositories/preferences';
 import * as memoriesRepo from './repositories/memories';
+import * as chatMessagesRepo from './repositories/chat-messages';
+import * as templatesRepo from './repositories/session-templates';
 import { StateMonitor } from './state-monitor';
 import { createApplicationMenu } from './menu';
 import { initAutoUpdater, checkForUpdatesManual, downloadUpdate } from './auto-updater';
@@ -656,6 +658,24 @@ safeHandle('db:memories:getById', (id: string) => {
 
 safeHandle('db:memories:getGlobal', () => {
   return memoriesRepo.getGlobalContextMemories();
+});
+
+// Chat Messages IPC Handlers
+safeHandle('chat:searchMessages', (query: string, sessionId?: string, limit?: number) => {
+  return chatMessagesRepo.searchMessages(query, sessionId, limit);
+});
+
+// Session Templates IPC Handlers
+safeHandle('templates:getAll', () => {
+  return templatesRepo.getAllSessionTemplates();
+});
+
+safeHandle('templates:create', (input: any) => {
+  return templatesRepo.createSessionTemplate(input);
+});
+
+safeHandle('templates:delete', (id: string) => {
+  return templatesRepo.deleteSessionTemplate(id);
 });
 
 // Preferences IPC Handlers
