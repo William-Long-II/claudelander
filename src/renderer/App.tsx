@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
-import Terminal from './components/Terminal';
-import TerminalHeader from './components/TerminalHeader';
+import { ChatContainer } from './components/chat/ChatContainer';
 import RemoteTerminal from './components/RemoteTerminal';
 import ContextMenu, { MenuItem } from './components/ContextMenu';
 import { ShareModal } from './components/ShareModal';
@@ -16,6 +15,7 @@ import { useSharing } from './store/sharing';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import './styles/global.css';
 import './styles/context-menu.css';
+import './styles/chat.css';
 
 interface RemoteSession {
   code: string;
@@ -1291,23 +1291,10 @@ const App: React.FC = () => {
               className="terminal-wrapper"
               style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
             >
-              <TerminalHeader
-                session={session}
-                isSharing={sharingSessions.has(session.id)}
-                onRename={(name) => updateSession(session.id, { name })}
-                onRestart={() => setRestartKeys(prev => ({ ...prev, [session.id]: (prev[session.id] || 0) + 1 }))}
-                onStop={() => updateSession(session.id, { state: 'stopped' })}
-                onClose={() => handleRemoveSession(session.id)}
-              />
-              <Terminal
+              <ChatContainer
                 sessionId={session.id}
-                cwd={session.workingDir}
-                launchClaude={session.shellType === 'claude'}
-                isStopped={session.state === 'stopped'}
-                restartKey={restartKeys[session.id] || 0}
-                isActive={session.id === activeSessionId}
-                onStart={() => updateSession(session.id, { state: 'idle' })}
-                onError={() => updateSession(session.id, { state: 'error' })}
+                sessionName={session.name}
+                workingDir={session.workingDir}
               />
             </div>
           ))}
