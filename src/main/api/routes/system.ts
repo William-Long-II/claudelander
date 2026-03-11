@@ -8,7 +8,6 @@ import { Router, Request, Response } from 'express';
 import { app } from 'electron';
 import { hostname, platform, release, homedir, cpus, totalmem, freemem } from 'os';
 import log from 'electron-log';
-import { detectShell, getWSLDistros } from '../../shell-detector';
 
 export function createSystemRouter(): Router {
   const router = Router();
@@ -39,21 +38,14 @@ export function createSystemRouter(): Router {
   });
 
   /**
-   * GET /system/shells - Get available shells
+   * GET /system/shells - Get available shells (legacy endpoint)
    */
   router.get('/shells', (_req: Request, res: Response) => {
-    try {
-      const defaultShell = detectShell();
-      const wslDistros = platform() === 'win32' ? getWSLDistros() : [];
-
-      res.json({
-        default: defaultShell,
-        wslDistros,
-      });
-    } catch (error) {
-      log.error('[SystemAPI] Error detecting shells:', error);
-      res.status(500).json({ error: 'Failed to detect shells' });
-    }
+    // Shell detection removed in 3.0 — Claude CLI manages its own shell
+    res.json({
+      default: { name: 'claude', path: 'claude' },
+      wslDistros: [],
+    });
   });
 
   /**
