@@ -22,7 +22,7 @@
     "claudelander-memory-server": "./dist/mcp-server/index.js"
   },
   "scripts": {
-    "postinstall": "electron-rebuild -o better-sqlite3,sodium-native,sqlite-vec,node-pty && node node_modules/node-pty/scripts/post-install.js",
+    "postinstall": "electron-rebuild -o better-sqlite3,sodium-native,sqlite-vec",
     "build:main": "tsc -p tsconfig.main.json",
     "build:worker": "esbuild src/main/vector-search/indexing-worker.ts --bundle --platform=node --target=node18 --outfile=dist/main/vector-search/indexing-worker.js --sourcemap --format=cjs --external:tree-sitter --external:tree-sitter-* --external:onnxruntime-node --external:onnxruntime-common --alias:sharp=./src/main/vector-search/sharp-stub.js",
     "build:mcp": "esbuild src/mcp-server/index.ts --bundle --platform=node --target=node18 --outfile=dist/mcp-server/index.js --sourcemap --format=cjs",
@@ -59,7 +59,6 @@
     "highlight.js": "^11.11.1",
     "ignore": "^7.0.4",
     "marked": "^17.0.4",
-    "node-pty": "^1.1.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
@@ -71,10 +70,7 @@
     "tree-sitter-javascript": "^0.23.1",
     "tree-sitter-python": "^0.23.6",
     "tree-sitter-typescript": "^0.23.2",
-    "ws": "^8.19.0",
-    "xterm": "^5.3.0",
-    "xterm-addon-fit": "^0.8.0",
-    "xterm-addon-webgl": "^0.16.0"
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@electron/notarize": "^3.1.1",
