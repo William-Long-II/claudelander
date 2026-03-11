@@ -19,6 +19,8 @@ import {
   SymbolSearchResult,
   IndexProgress,
   SymbolType,
+  SessionStatus,
+  ClaudeJsonEvent,
 } from '../../shared/types';
 
 interface StateChangeEvent {
@@ -169,6 +171,17 @@ export interface ElectronAPI {
   openInEditor: (filePath: string, line?: number, column?: number) => Promise<{ success: boolean; error?: string }>;
   detectAvailableEditors: () => Promise<string[]>;
   getEditorOptions: () => Promise<{ value: string; label: string }[]>;
+
+  // Claude Session API (3.0)
+  claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) => Promise<void>;
+  claudeSend: (sessionId: string, prompt: string) => Promise<void>;
+  claudeKill: (sessionId: string) => Promise<void>;
+  claudeGetStatus: (sessionId: string) => Promise<SessionStatus>;
+  claudeIsRunning: (sessionId: string) => Promise<boolean>;
+  onClaudeEvent: (callback: (sessionId: string, event: ClaudeJsonEvent) => void) => () => void;
+  onClaudeStateChange: (callback: (sessionId: string, status: SessionStatus) => void) => () => void;
+  onClaudeEnded: (callback: (sessionId: string) => void) => () => void;
+  onClaudeError: (callback: (sessionId: string, error: string) => void) => () => void;
 }
 
 declare global {

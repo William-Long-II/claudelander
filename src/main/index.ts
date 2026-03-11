@@ -22,6 +22,7 @@ import log from 'electron-log';
 import { getApiServer } from './api';
 import { getVectorSearchManager, disposeVectorSearchManager } from './vector-search';
 import { openInEditor, detectAvailableEditors, getEditorOptions, EditorType } from './editor-launcher';
+import { claudeSessionManager } from './claude-session-manager';
 
 // Global error handlers to catch uncaught exceptions and prevent silent crashes
 process.on('uncaughtException', (error: Error) => {
@@ -395,6 +396,32 @@ function createWindow(): void {
     getApiServer().broadcastSessionState(event.sessionId, event.state, event.event);
   });
 
+  // Claude session event forwarding (3.0)
+  claudeSessionManager.on('event', ({ sessionId, event }: { sessionId: string; event: any }) => {
+    mainWindow?.webContents.send('claude:event', sessionId, event);
+  });
+
+  claudeSessionManager.on('state-change', ({ sessionId, status }: { sessionId: string; status: any }) => {
+    mainWindow?.webContents.send('claude:stateChange', sessionId, status);
+    try {
+      sessionsRepo.updateSession(sessionId, {
+        state: status.state === 'idle' ? 'idle' : status.state === 'error' ? 'error' : 'working',
+        lastActivityAt: new Date(),
+      });
+    } catch (error) {
+      log.error('Failed to update session state:', error);
+    }
+    handleStateChange(sessionId, status.state === 'idle' ? 'idle' : status.state === 'error' ? 'error' : 'working');
+  });
+
+  claudeSessionManager.on('session-ended', ({ sessionId }: { sessionId: string }) => {
+    mainWindow?.webContents.send('claude:ended', sessionId);
+  });
+
+  claudeSessionManager.on('error', ({ sessionId, error }: { sessionId: string; error: string }) => {
+    mainWindow?.webContents.send('claude:error', sessionId, error);
+  });
+
   // Save window bounds on resize/move
   const saveWindowBounds = () => {
     if (!mainWindow) return;
@@ -491,6 +518,39 @@ safeOn('pty:kill', (id: string) => {
     // Ignore errors - session may not have been shared
   });
   ptyManager.kill(id);
+});
+
+// ============================================================================
+// Claude Session IPC Handlers (3.0 — replaces PTY)
+// ============================================================================
+
+safeHandle('claude:start', async (sessionId: string, cwd: string, prompt: string, options?: any) => {
+  const sessions = sessionsRepo.getAllSessions();
+  const session = sessions.find(s => s.id === sessionId);
+  const groupId = session?.groupId || null;
+
+  claudeSessionManager.startSession(sessionId, cwd, prompt, {
+    groupId,
+    ...options,
+  });
+
+  soundManager.playStartSound();
+});
+
+safeHandle('claude:send', (sessionId: string, prompt: string) => {
+  claudeSessionManager.sendMessage(sessionId, prompt);
+});
+
+safeHandle('claude:kill', (sessionId: string) => {
+  claudeSessionManager.killSession(sessionId);
+});
+
+safeHandle('claude:status', (sessionId: string) => {
+  return claudeSessionManager.getSessionStatus(sessionId);
+});
+
+safeHandle('claude:isRunning', (sessionId: string) => {
+  return claudeSessionManager.isSessionRunning(sessionId);
 });
 
 // Database IPC Handlers - Groups
@@ -1090,6 +1150,12 @@ app.on('before-quit', (event) => {
       await ptyManager.killAll();
     } catch (e) {
       log.error('Error killing PTYs on quit:', e);
+    }
+
+    try {
+      await claudeSessionManager.killAll();
+    } catch (e) {
+      log.error('Error killing Claude sessions on quit:', e);
     }
 
     disposeVectorSearchManager();

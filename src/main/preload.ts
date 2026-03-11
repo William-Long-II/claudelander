@@ -304,4 +304,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   getEditorOptions: (): Promise<{ value: string; label: string }[]> =>
     ipcRenderer.invoke('editor:getOptions'),
+
+  // Claude Session API (3.0)
+  claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) =>
+    ipcRenderer.invoke('claude:start', sessionId, cwd, prompt, options),
+  claudeSend: (sessionId: string, prompt: string) =>
+    ipcRenderer.invoke('claude:send', sessionId, prompt),
+  claudeKill: (sessionId: string) =>
+    ipcRenderer.invoke('claude:kill', sessionId),
+  claudeGetStatus: (sessionId: string) =>
+    ipcRenderer.invoke('claude:status', sessionId),
+  claudeIsRunning: (sessionId: string) =>
+    ipcRenderer.invoke('claude:isRunning', sessionId),
+  onClaudeEvent: (callback: (sessionId: string, event: any) => void) => {
+    const handler = (_: any, sessionId: string, event: any) => callback(sessionId, event);
+    ipcRenderer.on('claude:event', handler);
+    return () => ipcRenderer.removeListener('claude:event', handler);
+  },
+  onClaudeStateChange: (callback: (sessionId: string, status: any) => void) => {
+    const handler = (_: any, sessionId: string, status: any) => callback(sessionId, status);
+    ipcRenderer.on('claude:stateChange', handler);
+    return () => ipcRenderer.removeListener('claude:stateChange', handler);
+  },
+  onClaudeEnded: (callback: (sessionId: string) => void) => {
+    const handler = (_: any, sessionId: string) => callback(sessionId);
+    ipcRenderer.on('claude:ended', handler);
+    return () => ipcRenderer.removeListener('claude:ended', handler);
+  },
+  onClaudeError: (callback: (sessionId: string, error: string) => void) => {
+    const handler = (_: any, sessionId: string, error: string) => callback(sessionId, error);
+    ipcRenderer.on('claude:error', handler);
+    return () => ipcRenderer.removeListener('claude:error', handler);
+  },
 });
