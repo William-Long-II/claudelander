@@ -1,13 +1,14 @@
 /**
  * Hook API Routes
  *
- * Receives events from Claude Code hooks and processes them for memory storage.
+ * Receives events from Claude Code hooks and processes them for knowledge graph storage.
  * Hooks are configured in Claude Code to call these endpoints at key moments.
  */
 
 import { Router, Request, Response } from 'express';
-import * as memoriesRepo from '../../repositories/memories';
-import * as groupsRepo from '../../repositories/groups';
+import * as knowledgeRepo from '../../repositories/knowledge';
+import { extractKnowledgeCandidates } from '../../knowledge/extractor';
+import { detectDomains } from '../../knowledge/domain-tagger';
 import log from 'electron-log';
 
 /**
@@ -98,24 +99,24 @@ export function createHooksRouter(): Router {
         const commitInfo = extractGitCommitInfo(inputStr, outputStr);
 
         if (commitInfo && group_id) {
-          // Save commit as a decision memory
+          // Save commit as a Tier 1 knowledge node
           const content = commitInfo.branch
             ? `[Git Commit on ${commitInfo.branch}] ${commitInfo.message}`
             : `[Git Commit] ${commitInfo.message}`;
 
-          const memory = memoriesRepo.createMemory({
+          const node = knowledgeRepo.createKnowledgeNode({
             id: crypto.randomUUID(),
-            groupId: group_id,
-            sessionId: session_id || null,
-            type: 'decision',
+            tier: 1,
             content,
-            source: 'claude',
+            source: 'auto-extracted',
+            scopeGroupId: group_id,
+            scopeSessionId: session_id || null,
+            domains: detectDomains(content),
             tags: ['git', 'commit', 'auto-captured'],
-            pinned: false,
           });
 
-          log.info(`[HooksAPI] Saved git commit as memory: ${memory.id}`);
-          res.json({ saved: true, memory_id: memory.id, type: 'git_commit' });
+          log.info(`[HooksAPI] Saved git commit as knowledge node: ${node.id}`);
+          res.json({ saved: true, node_id: node.id, type: 'git_commit' });
           return;
         }
       }
@@ -156,19 +157,46 @@ export function createHooksRouter(): Router {
 
       // If a summary hint was provided by the hook script, save it
       if (summary_hint && group_id) {
-        const memory = memoriesRepo.createMemory({
+        // Save the summary as a Tier 1 knowledge node
+        const summaryNode = knowledgeRepo.createKnowledgeNode({
           id: crypto.randomUUID(),
-          groupId: group_id,
-          sessionId: session_id || null,
-          type: 'context',
+          tier: 1,
           content: summary_hint,
-          source: 'claude',
+          source: 'auto-extracted',
+          scopeGroupId: group_id,
+          scopeSessionId: session_id || null,
+          domains: detectDomains(summary_hint),
           tags: ['session-summary', 'auto-captured'],
-          pinned: false,
         });
 
-        log.info(`[HooksAPI] Saved session summary as memory: ${memory.id}`);
-        res.json({ saved: true, memory_id: memory.id, type: 'session_summary' });
+        log.info(`[HooksAPI] Saved session summary as knowledge node: ${summaryNode.id}`);
+
+        // Additionally, extract knowledge candidates (decisions/patterns/fixes) from the summary
+        const candidates = extractKnowledgeCandidates('', summary_hint);
+        const extractedNodeIds: string[] = [];
+
+        for (const candidate of candidates) {
+          const node = knowledgeRepo.createKnowledgeNode({
+            id: crypto.randomUUID(),
+            tier: 1,
+            content: candidate.content,
+            source: 'auto-extracted',
+            confidence: candidate.confidence,
+            scopeGroupId: group_id,
+            scopeSessionId: session_id || null,
+            domains: candidate.domains,
+            tags: [candidate.trigger, 'extracted-from-summary', 'auto-captured'],
+          });
+          extractedNodeIds.push(node.id);
+          log.info(`[HooksAPI] Extracted ${candidate.trigger} knowledge node: ${node.id}`);
+        }
+
+        res.json({
+          saved: true,
+          node_id: summaryNode.id,
+          type: 'session_summary',
+          extracted_nodes: extractedNodeIds,
+        });
         return;
       }
 
@@ -189,21 +217,22 @@ export function createHooksRouter(): Router {
 
       log.info(`[HooksAPI] Notification: ${notification_type}`);
 
-      // Could capture error notifications as error_fix memories
+      // Capture error notifications as Tier 1 knowledge nodes
       if (notification_type === 'error' && message && group_id) {
-        const memory = memoriesRepo.createMemory({
+        const content = `[Error Encountered] ${message}`;
+        const node = knowledgeRepo.createKnowledgeNode({
           id: crypto.randomUUID(),
-          groupId: group_id,
-          sessionId: session_id || null,
-          type: 'error_fix',
-          content: `[Error Encountered] ${message}`,
-          source: 'claude',
+          tier: 1,
+          content,
+          source: 'auto-extracted',
+          scopeGroupId: group_id,
+          scopeSessionId: session_id || null,
+          domains: detectDomains(content),
           tags: ['error', 'auto-captured'],
-          pinned: false,
         });
 
-        log.info(`[HooksAPI] Saved error as memory: ${memory.id}`);
-        res.json({ saved: true, memory_id: memory.id, type: 'error' });
+        log.info(`[HooksAPI] Saved error as knowledge node: ${node.id}`);
+        res.json({ saved: true, node_id: node.id, type: 'error' });
         return;
       }
 
