@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { ChatContainer } from './components/chat/ChatContainer';
-import RemoteTerminal from './components/RemoteTerminal';
 import ContextMenu, { MenuItem } from './components/ContextMenu';
 import { ShareModal } from './components/ShareModal';
 import { JoinSessionModal } from './components/JoinSessionModal';
@@ -1382,11 +1381,9 @@ const App: React.FC = () => {
                   </button>
                 </div>
               </div>
-              <RemoteTerminal
-                code={rs.code}
-                permission={rs.permission}
-                isActive={activeRemoteCode === rs.code}
-              />
+              <div className="no-session">
+                <p>Remote terminal view has been removed in 3.0</p>
+              </div>
             </div>
           ))}
           {sessions.length === 0 && remoteSessions.length === 0 && (

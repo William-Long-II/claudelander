@@ -8,39 +8,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   homedir,
 
-  // PTY operations
-  createSession: (id: string, cwd: string, launchClaude: boolean = false) =>
-    ipcRenderer.invoke('pty:create', id, cwd, launchClaude),
-  writeToSession: (id: string, data: string) =>
-    ipcRenderer.send('pty:write', id, data),
-  resizeSession: (id: string, cols: number, rows: number) =>
-    ipcRenderer.send('pty:resize', id, cols, rows),
-  killSession: (id: string) =>
-    ipcRenderer.send('pty:kill', id),
-
-  // PTY events
-  onPtyData: (callback: (id: string, data: string) => void) => {
-    const listener = (_: Electron.IpcRendererEvent, id: string, data: string) => callback(id, data);
-    ipcRenderer.on('pty:data', listener);
-    return () => {
-      ipcRenderer.removeListener('pty:data', listener);
-    };
-  },
-  onPtyExit: (callback: (id: string, exitCode: number) => void) => {
-    const listener = (_: Electron.IpcRendererEvent, id: string, exitCode: number) => callback(id, exitCode);
-    ipcRenderer.on('pty:exit', listener);
-    return () => {
-      ipcRenderer.removeListener('pty:exit', listener);
-    };
-  },
-  onStateChange: (callback: (event: { sessionId: string; state: string; event: string; timestamp: number }) => void) => {
-    const listener = (_: Electron.IpcRendererEvent, event: any) => callback(event);
-    ipcRenderer.on('state:change', listener);
-    return () => {
-      ipcRenderer.removeListener('state:change', listener);
-    };
-  },
-
   // Menu events
   onMenuNewSession: (callback: () => void) => {
     ipcRenderer.on('menu:new-session', callback);

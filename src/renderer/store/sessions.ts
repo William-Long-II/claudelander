@@ -19,26 +19,6 @@ export function useSessions() {
       }
     };
     loadSessions();
-
-    // Listen for state changes from hooks
-    const cleanupStateChange = window.electronAPI.onStateChange((event) => {
-      // Validate state is a valid SessionState
-      const validStates: SessionState[] = ['idle', 'working', 'waiting', 'error', 'stopped'];
-      if (!validStates.includes(event.state as SessionState)) {
-        console.error('Invalid session state received:', event.state);
-        return;
-      }
-
-      setSessions(prev => prev.map(s =>
-        s.id === event.sessionId
-          ? { ...s, state: event.state as SessionState, lastActivityAt: new Date(event.timestamp * 1000) }
-          : s
-      ));
-    });
-
-    return () => {
-      cleanupStateChange();
-    };
   }, []);
 
   const createSession = useCallback(async (
