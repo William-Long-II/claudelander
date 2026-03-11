@@ -31,22 +31,22 @@ const TRIVIAL_PATTERNS = [
 function isTrivial(userMsg: string, assistantMsg: string): boolean {
   return (
     (userMsg.length < 20 && TRIVIAL_PATTERNS.some(p => p.test(userMsg))) ||
-    (assistantMsg.length < 50)
+    (userMsg.length < 20 && assistantMsg.length < 50)
   );
 }
 
 function extractDecisions(assistantMsg: string): string[] {
-  const sentences = assistantMsg.split(/[.!]\s+/);
+  const sentences = assistantMsg.split(/[.!?]\s+|[.!?]$/);
   return sentences.filter(s => DECISION_PATTERNS.some(p => p.test(s))).map(s => s.trim());
 }
 
 function extractErrorFixes(assistantMsg: string): string[] {
-  const sentences = assistantMsg.split(/[.!]\s+/);
+  const sentences = assistantMsg.split(/[.!?]\s+|[.!?]$/);
   return sentences.filter(s => ERROR_FIX_PATTERNS.some(p => p.test(s))).map(s => s.trim());
 }
 
 function extractPatterns(assistantMsg: string): string[] {
-  const sentences = assistantMsg.split(/[.!]\s+/);
+  const sentences = assistantMsg.split(/[.!?]\s+|[.!?]$/);
   return sentences.filter(s => PATTERN_INDICATORS.some(p => p.test(s))).map(s => s.trim());
 }
 
@@ -58,13 +58,14 @@ export function extractKnowledgeCandidates(
 
   const candidates: KnowledgeCandidate[] = [];
   const fullContext = `${userMessage} ${assistantMessage}`;
+  const domains = detectDomains(fullContext);
 
   // Extract decisions
   for (const decision of extractDecisions(assistantMessage)) {
     if (decision.length > 20) {
       candidates.push({
         content: decision,
-        domains: detectDomains(fullContext),
+        domains,
         trigger: 'decision',
         confidence: 0.7,
       });
@@ -76,7 +77,7 @@ export function extractKnowledgeCandidates(
     if (fix.length > 20) {
       candidates.push({
         content: fix,
-        domains: detectDomains(fullContext),
+        domains,
         trigger: 'error_fix',
         confidence: 0.8,
       });
@@ -88,7 +89,7 @@ export function extractKnowledgeCandidates(
     if (pattern.length > 20) {
       candidates.push({
         content: pattern,
-        domains: detectDomains(fullContext),
+        domains,
         trigger: 'pattern',
         confidence: 0.6,
       });

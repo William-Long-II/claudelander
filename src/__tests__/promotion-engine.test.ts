@@ -8,7 +8,7 @@ vi.mock('../main/database', () => ({
   getDatabase: () => db,
 }));
 
-import { createKnowledgeNode, createKnowledgeEdge } from '../main/repositories/knowledge';
+import { createKnowledgeNode } from '../main/repositories/knowledge';
 import { findPromotionCandidates, applyDecayPass } from '../main/knowledge/promotion-engine';
 
 beforeEach(() => {
