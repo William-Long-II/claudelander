@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import * as path from 'path';
 import { app } from 'electron';
 import log from 'electron-log';
+import { initKnowledgeGraphTables } from './database-knowledge';
 
 let db: Database.Database | null = null;
 let sqliteVecAvailable = false;
@@ -50,6 +51,7 @@ export function getDatabase(): Database.Database {
 
   initializeTables(db);
   initializeCodeSearchTables(db);
+  initKnowledgeGraphTables(db);
 
   return db;
 }
