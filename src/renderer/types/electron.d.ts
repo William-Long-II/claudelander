@@ -25,6 +25,9 @@ import {
   SessionTemplate,
   SessionTemplateCreateInput,
   ConversationBranch,
+  KnowledgeNode,
+  KnowledgeEdge,
+  KnowledgePromotion,
 } from '../../shared/types';
 
 interface StateChangeEvent {
@@ -194,6 +197,16 @@ export interface ElectronAPI {
     name?: string;
   }) => Promise<ConversationBranch>;
   branchesDelete: (id: string) => Promise<boolean>;
+
+  // Knowledge Graph
+  knowledgeSearch: (query: string, limit?: number) => Promise<KnowledgeNode[]>;
+  knowledgeGetByTier: (tier: number, limit?: number) => Promise<KnowledgeNode[]>;
+  knowledgeGetByDomain: (domain: string, limit?: number) => Promise<KnowledgeNode[]>;
+  knowledgeGetRelated: (nodeId: string) => Promise<KnowledgeEdge[]>;
+  knowledgeGetNode: (id: string) => Promise<KnowledgeNode | null>;
+  knowledgePromote: (id: string, toTier: number, evidence?: string[]) => Promise<KnowledgePromotion | null>;
+  knowledgePin: (id: string, pinned: boolean) => Promise<boolean>;
+  knowledgeDelete: (id: string) => Promise<boolean>;
 
   // Claude Session API (3.0)
   claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) => Promise<void>;

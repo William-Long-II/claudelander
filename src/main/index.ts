@@ -9,13 +9,15 @@ import * as memoriesRepo from './repositories/memories';
 import * as chatMessagesRepo from './repositories/chat-messages';
 import * as templatesRepo from './repositories/session-templates';
 import * as branchesRepo from './repositories/conversation-branches';
+import * as knowledgeRepo from './repositories/knowledge';
+import { randomUUID } from 'crypto';
 import { StateMonitor } from './state-monitor';
 import { createApplicationMenu } from './menu';
 import { initAutoUpdater, checkForUpdatesManual, downloadUpdate } from './auto-updater';
 import { notificationManager } from './notification-manager';
 import { trayManager } from './tray-manager';
 import { soundManager, SoundEvent } from './sound-manager';
-import { Group, Session, MemoryCreateInput, MemoryUpdateInput } from '../shared/types';
+import { Group, Session, MemoryCreateInput, MemoryUpdateInput, KnowledgeTier } from '../shared/types';
 import { authService } from './sharing/auth';
 import { shareManager } from './sharing/share-manager';
 import { teamsAuthService } from './teams/teams-auth';
@@ -690,6 +692,53 @@ safeHandle('branches:create', (input: any) => {
 
 safeHandle('branches:delete', (id: string) => {
   return branchesRepo.deleteBranch(id);
+});
+
+// Knowledge Graph IPC Handlers
+safeHandle('knowledge:search', (query: string, limit?: number) => {
+  return knowledgeRepo.searchKnowledgeNodes(query, limit);
+});
+
+safeHandle('knowledge:getByTier', (tier: number, limit?: number) => {
+  return knowledgeRepo.getKnowledgeNodesByTier(tier as KnowledgeTier, limit);
+});
+
+safeHandle('knowledge:getByDomain', (domain: string, limit?: number) => {
+  return knowledgeRepo.getKnowledgeNodesByDomain(domain, limit);
+});
+
+safeHandle('knowledge:getRelated', (nodeId: string) => {
+  return knowledgeRepo.getEdgesForNode(nodeId);
+});
+
+safeHandle('knowledge:getNode', (id: string) => {
+  return knowledgeRepo.getKnowledgeNode(id);
+});
+
+safeHandle('knowledge:promote', (id: string, toTier: number, evidence?: string[]) => {
+  const node = knowledgeRepo.getKnowledgeNode(id);
+  if (!node) return null;
+  knowledgeRepo.updateKnowledgeNode(id, { tier: toTier as KnowledgeTier });
+  return knowledgeRepo.logPromotion({
+    id: randomUUID(),
+    nodeId: id,
+    fromTier: node.tier,
+    toTier: toTier as KnowledgeTier,
+    trigger: 'manual',
+    evidence: evidence || [],
+  });
+});
+
+safeHandle('knowledge:pin', (id: string, pinned: boolean) => {
+  knowledgeRepo.updateKnowledgeNode(id, {
+    confidence: pinned ? 1.0 : 0.5,
+  });
+  return true;
+});
+
+safeHandle('knowledge:delete', (id: string) => {
+  knowledgeRepo.deleteKnowledgeNode(id);
+  return true;
 });
 
 // Preferences IPC Handlers

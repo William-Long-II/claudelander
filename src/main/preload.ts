@@ -325,6 +325,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   branchesDelete: (id: string): Promise<boolean> =>
     ipcRenderer.invoke('branches:delete', id),
 
+  // Knowledge Graph
+  knowledgeSearch: (query: string, limit?: number) =>
+    ipcRenderer.invoke('knowledge:search', query, limit),
+  knowledgeGetByTier: (tier: number, limit?: number) =>
+    ipcRenderer.invoke('knowledge:getByTier', tier, limit),
+  knowledgeGetByDomain: (domain: string, limit?: number) =>
+    ipcRenderer.invoke('knowledge:getByDomain', domain, limit),
+  knowledgeGetRelated: (nodeId: string) =>
+    ipcRenderer.invoke('knowledge:getRelated', nodeId),
+  knowledgeGetNode: (id: string) =>
+    ipcRenderer.invoke('knowledge:getNode', id),
+  knowledgePromote: (id: string, toTier: number, evidence?: string[]) =>
+    ipcRenderer.invoke('knowledge:promote', id, toTier, evidence),
+  knowledgePin: (id: string, pinned: boolean) =>
+    ipcRenderer.invoke('knowledge:pin', id, pinned),
+  knowledgeDelete: (id: string) =>
+    ipcRenderer.invoke('knowledge:delete', id),
+
   // Claude Session API (3.0)
   claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) =>
     ipcRenderer.invoke('claude:start', sessionId, cwd, prompt, options),

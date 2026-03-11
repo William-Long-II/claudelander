@@ -8,6 +8,7 @@ import { NamePromptModal } from './components/NamePromptModal';
 import { SettingsModal } from './components/SettingsModal';
 import { NewItemChoice } from './components/NewItemChoice';
 import { MemoryPanel } from './components/panels/MemoryPanel';
+import { KnowledgeGraphPanel } from './components/panels/KnowledgeGraphPanel';
 import { CodeSearchModal } from './components/CodeSearchModal';
 import { SearchModal } from './components/SearchModal';
 import { CommandPalette } from './components/CommandPalette';
@@ -94,6 +95,9 @@ const App: React.FC = () => {
 
   // Memory panel state
   const [memoryPanelOpen, setMemoryPanelOpen] = useState(false);
+
+  // Knowledge panel state
+  const [knowledgePanelOpen, setKnowledgePanelOpen] = useState(false);
 
   // Code search modal state
   const [codeSearchOpen, setCodeSearchOpen] = useState(false);
@@ -872,6 +876,14 @@ const App: React.FC = () => {
               *
             </button>
             <button
+              className={`icon-button ${knowledgePanelOpen ? 'active' : ''}`}
+              onClick={() => setKnowledgePanelOpen(prev => !prev)}
+              title="Toggle Knowledge Graph"
+              aria-label="Toggle Knowledge Graph"
+            >
+              K
+            </button>
+            <button
               className="icon-button"
               onClick={() => setCodeSearchOpen(true)}
               title="Code Search (Ctrl+Shift+F)"
@@ -1406,6 +1418,12 @@ const App: React.FC = () => {
         onToggle={() => setMemoryPanelOpen(prev => !prev)}
         sessionId={activeSessionId}
         groupId={activeGroupId}
+      />
+
+      {/* Knowledge Graph Panel */}
+      <KnowledgeGraphPanel
+        isOpen={knowledgePanelOpen}
+        onToggle={() => setKnowledgePanelOpen(prev => !prev)}
       />
 
       <footer className="status-bar">
