@@ -1,7 +1,9 @@
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execSync } from 'child_process';
 import { EventEmitter } from 'events';
 import log from 'electron-log';
 import { ClaudeJsonEvent, SessionStatus, SessionState3 } from '../shared/types';
+
+const IS_WINDOWS = process.platform === 'win32';
 
 interface ManagedSession {
   id: string;
@@ -163,7 +165,9 @@ export class ClaudeSessionManager extends EventEmitter {
     });
 
     proc.stderr!.on('data', (chunk: Buffer) => {
-      log.warn(`[ClaudeSession] stderr for ${sessionId}:`, chunk.toString());
+      const text = chunk.toString();
+      log.warn(`[ClaudeSession] stderr for ${sessionId}:`, text);
+      this.emit('error', { sessionId, error: text });
     });
 
     proc.on('close', (exitCode) => {
@@ -179,26 +183,51 @@ export class ClaudeSessionManager extends EventEmitter {
       session.state = 'error';
       session.description = err.message;
       this.emitStateChange(session);
+      this.emit('error', { sessionId, error: err.message });
     });
   }
 
-  killSession(sessionId: string): void {
+  killSession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
-    if (session?.process) {
-      session.process.kill('SIGTERM');
-      // Force kill after 3 seconds
-      setTimeout(() => {
-        if (session.process) {
-          session.process.kill('SIGKILL');
+    if (!session?.process) return Promise.resolve();
+
+    const proc = session.process;
+    const pid = proc.pid;
+
+    return new Promise<void>((resolve) => {
+      // Resolve when the process actually exits
+      proc.once('close', () => resolve());
+
+      if (IS_WINDOWS && pid) {
+        // On Windows, kill the entire process tree to avoid orphan subprocesses
+        try {
+          execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'ignore' });
+        } catch {
+          // Process may have already exited
+          proc.kill();
         }
-      }, 3000);
-    }
+      } else {
+        proc.kill('SIGTERM');
+        // Force kill after 3 seconds if still alive
+        const forceKillTimer = setTimeout(() => {
+          if (session.process) {
+            proc.kill('SIGKILL');
+          }
+        }, 3000);
+        proc.once('close', () => clearTimeout(forceKillTimer));
+      }
+
+      // Safety timeout — don't block forever
+      setTimeout(() => resolve(), 5000);
+    });
   }
 
   async killAll(): Promise<void> {
+    const kills: Promise<void>[] = [];
     for (const [id] of this.sessions) {
-      this.killSession(id);
+      kills.push(this.killSession(id));
     }
+    await Promise.all(kills);
   }
 
   removeSession(sessionId: string): void {

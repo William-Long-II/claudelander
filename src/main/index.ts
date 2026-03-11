@@ -403,15 +403,20 @@ function createWindow(): void {
 
   claudeSessionManager.on('state-change', ({ sessionId, status }: { sessionId: string; status: any }) => {
     mainWindow?.webContents.send('claude:stateChange', sessionId, status);
+    // Map 3.0 SessionState3 to legacy state for DB and notifications
+    const legacyState = status.state === 'idle' || status.state === 'stopped' ? 'idle'
+      : status.state === 'error' ? 'error'
+      : status.state === 'waiting' ? 'waiting'
+      : 'working';
     try {
       sessionsRepo.updateSession(sessionId, {
-        state: status.state === 'idle' ? 'idle' : status.state === 'error' ? 'error' : 'working',
+        state: legacyState,
         lastActivityAt: new Date(),
       });
     } catch (error) {
       log.error('Failed to update session state:', error);
     }
-    handleStateChange(sessionId, status.state === 'idle' ? 'idle' : status.state === 'error' ? 'error' : 'working');
+    handleStateChange(sessionId, legacyState);
   });
 
   claudeSessionManager.on('session-ended', ({ sessionId }: { sessionId: string }) => {
