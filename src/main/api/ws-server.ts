@@ -10,6 +10,7 @@ import { URL } from 'url';
 import log from 'electron-log';
 import { PairingManager, PairedDevice } from './pairing/pairing-manager';
 import { ptyManager } from '../pty-manager';
+import { claudeSessionManager } from '../claude-session-manager';
 
 export interface WsMessage {
   type: string;
@@ -104,6 +105,9 @@ export function createWsServer(httpServer: HttpServer, pairingManager: PairingMa
 
   // Set up PTY data forwarding
   setupPtyForwarding(clients);
+
+  // Set up chat event forwarding for Claude session manager
+  setupChatForwarding(clients);
 
   return {
     broadcast(message: WsMessage): void {
@@ -222,6 +226,57 @@ function handleClientMessage(ws: WebSocket, message: WsMessage, clientInfo: Clie
       break;
     }
 
+    case 'chat:subscribe': {
+      const sessionId = message.sessionId;
+      if (sessionId) {
+        clientInfo.subscribedSessions.add(sessionId);
+        log.debug(`[WsServer] Client subscribed to chat session: ${sessionId}`);
+        sendMessage(ws, {
+          type: 'chat:subscribed',
+          sessionId,
+          timestamp: Date.now(),
+        });
+      }
+      break;
+    }
+
+    case 'chat:unsubscribe': {
+      const sessionId = message.sessionId;
+      if (sessionId) {
+        clientInfo.subscribedSessions.delete(sessionId);
+        log.debug(`[WsServer] Client unsubscribed from chat session: ${sessionId}`);
+      }
+      break;
+    }
+
+    case 'chat:send': {
+      if (!clientInfo.device.canControl) {
+        sendMessage(ws, {
+          type: 'error',
+          payload: { message: 'Control permission required' },
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      const sessionId = message.sessionId;
+      const content = (message.payload as { content?: string })?.content;
+
+      if (sessionId && content) {
+        const isRunning = claudeSessionManager.isSessionRunning(sessionId);
+        if (isRunning) {
+          sendMessage(ws, {
+            type: 'error',
+            payload: { message: 'Session is currently processing. Wait for it to become idle.' },
+            timestamp: Date.now(),
+          });
+        } else {
+          claudeSessionManager.sendMessage(sessionId, content);
+        }
+      }
+      break;
+    }
+
     case 'ping': {
       sendMessage(ws, {
         type: 'pong',
@@ -271,6 +326,83 @@ function setupPtyForwarding(clients: Map<WebSocket, ClientInfo>): void {
 
     for (const [ws, info] of clients) {
       if (ws.readyState === WebSocket.OPEN && info.subscribedSessions.has(id)) {
+        ws.send(msgStr);
+      }
+    }
+  });
+}
+
+/**
+ * Set up forwarding of Claude session manager events to subscribed clients
+ */
+function setupChatForwarding(clients: Map<WebSocket, ClientInfo>): void {
+  // Forward Claude JSON events
+  claudeSessionManager.on('event', ({ sessionId, event }: { sessionId: string; event: unknown }) => {
+    const message: WsMessage = {
+      type: 'chat:event',
+      sessionId,
+      payload: { event },
+      timestamp: Date.now(),
+    };
+
+    const msgStr = JSON.stringify(message);
+
+    for (const [ws, info] of clients) {
+      if (ws.readyState === WebSocket.OPEN && info.subscribedSessions.has(sessionId)) {
+        ws.send(msgStr);
+      }
+    }
+  });
+
+  // Forward state changes
+  claudeSessionManager.on('state-change', ({ sessionId, status }: { sessionId: string; status: unknown }) => {
+    const message: WsMessage = {
+      type: 'chat:stateChange',
+      sessionId,
+      payload: { status },
+      timestamp: Date.now(),
+    };
+
+    const msgStr = JSON.stringify(message);
+
+    for (const [ws, info] of clients) {
+      if (ws.readyState === WebSocket.OPEN && info.subscribedSessions.has(sessionId)) {
+        ws.send(msgStr);
+      }
+    }
+  });
+
+  // Forward session ended
+  claudeSessionManager.on('session-ended', ({ sessionId, exitCode }: { sessionId: string; exitCode: number }) => {
+    const message: WsMessage = {
+      type: 'chat:ended',
+      sessionId,
+      payload: { exitCode },
+      timestamp: Date.now(),
+    };
+
+    const msgStr = JSON.stringify(message);
+
+    for (const [ws, info] of clients) {
+      if (ws.readyState === WebSocket.OPEN && info.subscribedSessions.has(sessionId)) {
+        ws.send(msgStr);
+      }
+    }
+  });
+
+  // Forward errors
+  claudeSessionManager.on('error', ({ sessionId, error }: { sessionId: string; error: string }) => {
+    const message: WsMessage = {
+      type: 'chat:error',
+      sessionId,
+      payload: { error },
+      timestamp: Date.now(),
+    };
+
+    const msgStr = JSON.stringify(message);
+
+    for (const [ws, info] of clients) {
+      if (ws.readyState === WebSocket.OPEN && info.subscribedSessions.has(sessionId)) {
         ws.send(msgStr);
       }
     }

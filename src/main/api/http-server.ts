@@ -17,6 +17,7 @@ import { createGroupsRouter } from './routes/groups';
 import { createSystemRouter } from './routes/system';
 import { createPairingRouter } from './routes/pairing';
 import { createTerminalRouter } from './routes/terminal';
+import { createChatRouter } from './routes/chat';
 import { createMemoriesRouter } from './routes/memories';
 import { createKnowledgeRouter } from './routes/knowledge';
 import { createHooksRouter } from './routes/hooks';
@@ -156,6 +157,7 @@ export async function createHttpServer(config: HttpServerConfig): Promise<HttpSe
   app.use('/api/v1/groups', generalLimiter, authMiddleware, createGroupsRouter());
   app.use('/api/v1/system', generalLimiter, authMiddleware, createSystemRouter());
   app.use('/api/v1/terminal', generalLimiter, authMiddleware, createTerminalRouter());
+  app.use('/api/v1/chat', generalLimiter, authMiddleware, createChatRouter());
 
   // Error handling middleware
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
