@@ -534,6 +534,8 @@ ipcMain.handle('db:sessions:delete', async (_, id: string) => {
   } catch {
     // Ignore errors - session may not have been shared
   }
+  // Kill any running Claude session
+  claudeSessionManager.removeSession(id);
   sessionsRepo.deleteSession(id);
   getApiServer().broadcastSessionsUpdated();
 });
@@ -580,6 +582,14 @@ safeHandle('db:memories:getGlobal', () => {
 });
 
 // Chat Messages IPC Handlers
+safeHandle('chat:getMessages', (sessionId: string, limit?: number) => {
+  return chatMessagesRepo.getMessagesBySession(sessionId, limit);
+});
+
+safeHandle('chat:createMessage', (input: any) => {
+  return chatMessagesRepo.createChatMessage(input);
+});
+
 safeHandle('chat:searchMessages', (query: string, sessionId?: string, limit?: number) => {
   return chatMessagesRepo.searchMessages(query, sessionId, limit);
 });

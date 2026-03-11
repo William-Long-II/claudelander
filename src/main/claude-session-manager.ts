@@ -230,8 +230,8 @@ export class ClaudeSessionManager extends EventEmitter {
     await Promise.all(kills);
   }
 
-  removeSession(sessionId: string): void {
-    this.killSession(sessionId);
+  async removeSession(sessionId: string): Promise<void> {
+    await this.killSession(sessionId);
     this.sessions.delete(sessionId);
   }
 

@@ -15,6 +15,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
   const [streamingToolCalls, setStreamingToolCalls] = useState<any[]>([]);
   const contentRef = useRef('');
   const thinkingRef = useRef('');
+  const toolCallsRef = useRef<any[]>([]);
 
   // Load saved messages from database on session change
   useEffect(() => {
@@ -24,7 +25,24 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
     }
 
     // Load from DB via IPC
-    // window.electronAPI.getMessagesBySession(sessionId).then(setMessages);
+    window.electronAPI.chatGetMessages(sessionId).then((dbMessages) => {
+      if (dbMessages && dbMessages.length > 0) {
+        setMessages(dbMessages.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          messageType: m.messageType,
+          thinking: m.thinking || null,
+          toolCalls: m.toolCalls || null,
+          createdAt: new Date(m.createdAt),
+          isStreaming: false,
+        })));
+      } else {
+        setMessages([]);
+      }
+    }).catch(() => {
+      setMessages([]);
+    });
   }, [sessionId]);
 
   // Subscribe to Claude events
@@ -38,6 +56,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
         case 'message_start':
           contentRef.current = '';
           thinkingRef.current = '';
+          toolCallsRef.current = [];
           setStreamingContent('');
           setStreamingThinking('');
           setStreamingToolCalls([]);
@@ -56,23 +75,25 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
 
         case 'content_block_start':
           if (event.content_block?.type === 'tool_use') {
-            setStreamingToolCalls(prev => [...prev, {
+            const newTool = {
               name: event.content_block.name,
               id: event.content_block.id,
               input: {},
-            }]);
+            };
+            toolCallsRef.current = [...toolCallsRef.current, newTool];
+            setStreamingToolCalls(toolCallsRef.current);
           }
           break;
 
-        case 'message_stop':
-          // Finalize the message
+        case 'message_stop': {
+          // Finalize the message using refs (not stale state)
           const finalMessage: ChatMessageData = {
             id: `msg-${Date.now()}`,
             role: 'assistant',
             content: contentRef.current,
             messageType: 'text',
             thinking: thinkingRef.current || null,
-            toolCalls: streamingToolCalls.length > 0 ? streamingToolCalls : null,
+            toolCalls: toolCallsRef.current.length > 0 ? toolCallsRef.current : null,
             createdAt: new Date(),
             isStreaming: false,
           };
@@ -83,8 +104,17 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
           setIsRunning(false);
 
           // Save to DB
-          // window.electronAPI.createChatMessage(finalMessage);
+          window.electronAPI.chatCreateMessage({
+            id: finalMessage.id,
+            sessionId: sid,
+            role: 'assistant',
+            content: finalMessage.content,
+            messageType: 'text',
+            toolCalls: finalMessage.toolCalls,
+            thinking: finalMessage.thinking,
+          });
           break;
+        }
       }
     });
 
@@ -119,7 +149,13 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
     setMessages(prev => [...prev, userMsg]);
 
     // Save to DB
-    // window.electronAPI.createChatMessage(userMsg);
+    window.electronAPI.chatCreateMessage({
+      id: userMsg.id,
+      sessionId,
+      role: 'user',
+      content,
+      messageType: 'text',
+    });
 
     // Send to Claude
     if (messages.length === 0) {

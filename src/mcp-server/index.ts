@@ -263,7 +263,7 @@ async function main() {
   // Create MCP server
   const server = new McpServer({
     name: 'claudelander-knowledge',
-    version: '2.0.0',
+    version: '3.0.0',
   });
 
   // ── Knowledge Tools ─────────────────────────────────────────────────────────

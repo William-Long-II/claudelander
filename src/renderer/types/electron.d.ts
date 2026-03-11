@@ -76,6 +76,8 @@ export interface ElectronAPI {
   onMemoryExtracted: (callback: (memory: Memory) => void) => () => void;
 
   // Chat Messages
+  chatGetMessages: (sessionId: string, limit?: number) => Promise<ChatMessage[]>;
+  chatCreateMessage: (input: any) => Promise<ChatMessage>;
   chatSearchMessages: (query: string, sessionId?: string, limit?: number) => Promise<ChatMessage[]>;
 
   // Preferences

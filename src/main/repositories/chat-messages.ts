@@ -112,12 +112,14 @@ export function searchMessages(
 ): ChatMessage[] {
   const db = getDatabase();
 
+  // Wrap in double quotes to treat as phrase search and prevent FTS5 operator injection
+  const safeQuery = '"' + query.replace(/"/g, '""') + '"';
   let sql = `
     SELECT cm.* FROM chat_messages cm
     JOIN chat_messages_fts fts ON cm.rowid = fts.rowid
     WHERE chat_messages_fts MATCH ?
   `;
-  const params: (string | number)[] = [query];
+  const params: (string | number)[] = [safeQuery];
 
   if (sessionId) {
     sql += ' AND cm.session_id = ?';

@@ -7,7 +7,7 @@
 import { Router, Request, Response } from 'express';
 import log from 'electron-log';
 import * as sessionsRepo from '../../repositories/sessions';
-import { ptyManager } from '../../pty-manager';
+import { claudeSessionManager } from '../../claude-session-manager';
 import { requireControlPermission, requireModifyPermission } from '../middleware/auth';
 import {
   validateIdParam,
@@ -83,9 +83,9 @@ export function createSessionsRouter(): Router {
 
         sessionsRepo.createSession(session);
 
-        // Start PTY if requested
+        // Start Claude session if requested
         if (launchClaude) {
-          ptyManager.createSession(id, session.workingDir, true, groupId);
+          claudeSessionManager.startSession(id, session.workingDir, '', { groupId });
         }
 
         log.info(`[SessionsAPI] Created session: ${id}`);
@@ -141,10 +141,8 @@ export function createSessionsRouter(): Router {
       try {
         const id = getStringParam(req.params.id);
 
-        // Stop PTY if running
-        if (ptyManager.getSession(id)) {
-          ptyManager.kill(id);
-        }
+        // Stop Claude session if running
+        claudeSessionManager.removeSession(id);
 
         sessionsRepo.deleteSession(id);
 
@@ -158,43 +156,7 @@ export function createSessionsRouter(): Router {
   );
 
   /**
-   * POST /sessions/:id/start - Start a session's PTY
-   */
-  router.post(
-    '/:id/start',
-    requireControlPermission,
-    validateIdParam,
-    (req: Request, res: Response) => {
-      try {
-        const id = getStringParam(req.params.id);
-        const { launchClaude } = req.body;
-
-        const sessions = sessionsRepo.getAllSessions();
-        const session = sessions.find(s => s.id === id);
-
-        if (!session) {
-          res.status(404).json({ error: 'Session not found' });
-          return;
-        }
-
-        if (ptyManager.getSession(id)) {
-          res.status(400).json({ error: 'Session is already running' });
-          return;
-        }
-
-        ptyManager.createSession(id, session.workingDir, launchClaude ?? false, session.groupId);
-
-        log.info(`[SessionsAPI] Started session: ${id}`);
-        res.json({ success: true });
-      } catch (error) {
-        log.error('[SessionsAPI] Error starting session:', error);
-        res.status(500).json({ error: 'Failed to start session' });
-      }
-    }
-  );
-
-  /**
-   * POST /sessions/:id/stop - Stop a session's PTY
+   * POST /sessions/:id/stop - Stop a Claude session
    */
   router.post(
     '/:id/stop',
@@ -204,49 +166,18 @@ export function createSessionsRouter(): Router {
       try {
         const id = getStringParam(req.params.id);
 
-        if (!ptyManager.getSession(id)) {
+        if (!claudeSessionManager.isSessionRunning(id)) {
           res.status(400).json({ error: 'Session is not running' });
           return;
         }
 
-        ptyManager.kill(id);
+        claudeSessionManager.killSession(id);
 
         log.info(`[SessionsAPI] Stopped session: ${id}`);
         res.json({ success: true });
       } catch (error) {
         log.error('[SessionsAPI] Error stopping session:', error);
         res.status(500).json({ error: 'Failed to stop session' });
-      }
-    }
-  );
-
-  /**
-   * POST /sessions/:id/resize - Resize a session's PTY
-   */
-  router.post(
-    '/:id/resize',
-    requireControlPermission,
-    validateIdParam,
-    (req: Request, res: Response) => {
-      try {
-        const id = getStringParam(req.params.id);
-        const { cols, rows } = req.body;
-
-        if (typeof cols !== 'number' || typeof rows !== 'number' || cols < 1 || rows < 1) {
-          res.status(400).json({ error: 'Invalid cols/rows values' });
-          return;
-        }
-
-        if (!ptyManager.getSession(id)) {
-          res.status(400).json({ error: 'Session is not running' });
-          return;
-        }
-
-        ptyManager.resize(id, cols, rows);
-        res.json({ success: true });
-      } catch (error) {
-        log.error('[SessionsAPI] Error resizing session:', error);
-        res.status(500).json({ error: 'Failed to resize session' });
       }
     }
   );

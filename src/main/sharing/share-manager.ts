@@ -3,7 +3,7 @@ import { RELAY_URL } from '../../shared/constants';
 import { ShareCode, CreateCodeOptions, ShareSession } from '../../shared/types';
 import { authService } from './auth';
 import { RelayClient } from './relay-client';
-import { ptyManager } from '../pty-manager';
+import { claudeSessionManager } from '../claude-session-manager';
 import log from 'electron-log';
 
 interface ActiveShare {
@@ -37,13 +37,13 @@ class ShareManager extends EventEmitter {
 
     this.activeShares.set(localSessionId, share);
 
-    // Forward PTY output to relay
-    const dataHandler = (ptySessionId: string, data: string) => {
-      if (ptySessionId === localSessionId && share.guests.size > 0) {
-        client.send(data);
+    // Forward Claude session events to relay
+    const eventHandler = ({ sessionId: sid, event }: { sessionId: string; event: unknown }) => {
+      if (sid === localSessionId && share.guests.size > 0) {
+        client.send(JSON.stringify(event));
       }
     };
-    ptyManager.on('data', dataHandler);
+    claudeSessionManager.on('event', eventHandler);
 
     // Handle guest events
     client.on('guestJoined', (info) => {
@@ -61,12 +61,15 @@ class ShareManager extends EventEmitter {
 
     // Handle input from guests with control permission
     client.on('data', (data: Buffer) => {
-      ptyManager.write(localSessionId, data.toString());
+      const content = data.toString();
+      if (content && !claudeSessionManager.isSessionRunning(localSessionId)) {
+        claudeSessionManager.sendMessage(localSessionId, content);
+      }
     });
 
     client.on('disconnected', () => {
       // Clean up on disconnect
-      ptyManager.off('data', dataHandler);
+      claudeSessionManager.off('event', eventHandler);
       this.activeShares.delete(localSessionId);
       this.emit('shareEnded', { localSessionId });
     });

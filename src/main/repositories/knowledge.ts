@@ -178,13 +178,15 @@ export function getKnowledgeNodesByGroup(groupId: string, limit: number = 100): 
 
 export function searchKnowledgeNodes(query: string, limit: number = 20): KnowledgeNode[] {
   const db = getDatabase();
+  // Wrap in double quotes to treat as phrase search and prevent FTS5 operator injection
+  const safeQuery = '"' + query.replace(/"/g, '""') + '"';
   const rows = db.prepare(`
     SELECT kn.* FROM knowledge_nodes kn
     JOIN knowledge_nodes_fts fts ON kn.rowid = fts.rowid
     WHERE knowledge_nodes_fts MATCH ?
     ORDER BY kn.confidence DESC
     LIMIT ?
-  `).all(query, limit) as KnowledgeNodeRow[];
+  `).all(safeQuery, limit) as KnowledgeNodeRow[];
   return rows.map(rowToNode);
 }
 
