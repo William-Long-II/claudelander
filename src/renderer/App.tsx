@@ -787,7 +787,7 @@ const App: React.FC = () => {
     const groupId = template.groupId || (groups.length > 0 ? groups[0].id : null);
     if (!groupId) return;
     const cwd = template.workingDir || getEffectiveWorkingDir(groupId) || homedir;
-    await createSession(groupId, template.name, cwd, true);
+    await createSession(groupId, template.name, cwd, true, template.initialPrompt || undefined);
   }, [groups, getEffectiveWorkingDir, homedir, createSession]);
 
   const shortcutHandlers = useMemo(() => ({

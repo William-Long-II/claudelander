@@ -25,7 +25,8 @@ export function useSessions() {
     groupId: string,
     name: string,
     workingDir: string,
-    launchClaude: boolean = true
+    launchClaude: boolean = true,
+    initialPrompt?: string,
   ): Promise<Session> => {
     return new Promise((resolve, reject) => {
       setSessions(prev => {
@@ -43,8 +44,12 @@ export function useSessions() {
 
         // Persist asynchronously
         window.electronAPI.createDbSession(session)
-          .then(() => {
+          .then(async () => {
             setActiveSessionId(session.id);
+            // Auto-start Claude with template initial prompt
+            if (launchClaude && initialPrompt) {
+              await window.electronAPI.claudeStart(session.id, workingDir, initialPrompt);
+            }
             resolve(session);
           })
           .catch((error) => {
