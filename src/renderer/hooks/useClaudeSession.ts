@@ -22,6 +22,12 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
   // Track whether we're in a multi-turn tool-use flow (don't finalize mid-turn)
   const pendingToolUseRef = useRef(false);
   const lastUserContentRef = useRef('');
+  const currentBranchIdRef = useRef<string | null>(null);
+
+  // Keep branchId ref in sync so event callbacks always see current value
+  useEffect(() => {
+    currentBranchIdRef.current = currentBranchId;
+  }, [currentBranchId]);
 
   // Load saved messages from database on session change or branch switch
   useEffect(() => {
@@ -185,6 +191,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
             messageType: 'text',
             toolCalls: finalMessage.toolCalls,
             thinking: finalMessage.thinking,
+            branchId: currentBranchIdRef.current || undefined,
           });
 
           // Auto-extract knowledge from the exchange
@@ -233,6 +240,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
           messageType: 'text',
           toolCalls: finalMessage.toolCalls,
           thinking: finalMessage.thinking,
+          branchId: currentBranchIdRef.current || undefined,
         });
       }
 
@@ -275,6 +283,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
       role: 'user',
       content,
       messageType: 'text',
+      branchId: currentBranchIdRef.current || undefined,
     });
 
     // Send to Claude — check if session exists in memory (survives DB reload but not app restart)

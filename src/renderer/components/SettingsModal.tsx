@@ -50,6 +50,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [showSplash, setShowSplash] = useState(true);
   const [splashDuration, setSplashDuration] = useState(2.5);
 
+  // Chat settings state
+  const [chatFontSize, setChatFontSize] = useState(14);
+  const [showThinking, setShowThinking] = useState(true);
+  const [sendShortcut, setSendShortcut] = useState('ctrl+enter');
+
   // Terminal settings state
   const [fontSize, setFontSize] = useState(14);
   const [webglRenderer, setWebglRenderer] = useState(true);
@@ -103,6 +108,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           fontSizePref,
           webglRendererPref,
           enableNotificationsPref,
+          chatFontSizePref,
+          showThinkingPref,
+          sendShortcutPref,
         ] = await Promise.all([
           window.electronAPI.getPreference('notificationSound'),
           window.electronAPI.getPreference('soundVolume'),
@@ -119,6 +127,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           window.electronAPI.getPreference('fontSize'),
           window.electronAPI.getPreference('webglRenderer'),
           window.electronAPI.getPreference('enableNotifications'),
+          window.electronAPI.getPreference('chatFontSize'),
+          window.electronAPI.getPreference('showThinking'),
+          window.electronAPI.getPreference('sendShortcut'),
         ]);
 
         setSoundEnabled(soundEnabledPref !== 'false');
@@ -136,6 +147,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         setFontSize(fontSizePref ? parseInt(fontSizePref, 10) : 14);
         setWebglRenderer(webglRendererPref === 'true');
         setEnableNotifications(enableNotificationsPref !== 'false');
+        setChatFontSize(chatFontSizePref ? parseInt(chatFontSizePref, 10) : 14);
+        setShowThinking(showThinkingPref !== 'false');
+        setSendShortcut(sendShortcutPref || 'ctrl+enter');
 
         // Load GitHub user status
         try {
@@ -392,6 +406,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     await window.electronAPI.setPreference('splashDuration', duration.toString());
   }, []);
 
+  // Chat setting handlers
+  const handleChatFontSizeChange = useCallback(async (size: number) => {
+    setChatFontSize(size);
+    await window.electronAPI.setPreference('chatFontSize', size.toString());
+  }, []);
+
+  const handleShowThinkingChange = useCallback(async (enabled: boolean) => {
+    setShowThinking(enabled);
+    await window.electronAPI.setPreference('showThinking', enabled.toString());
+  }, []);
+
+  const handleSendShortcutChange = useCallback(async (value: string) => {
+    setSendShortcut(value);
+    await window.electronAPI.setPreference('sendShortcut', value);
+  }, []);
+
   // Terminal setting handlers
   const handleFontSizeChange = useCallback(async (size: number) => {
     setFontSize(size);
@@ -597,6 +627,47 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       onChange={e => handleSplashDurationChange(parseFloat(e.target.value))}
                     />
                     <span className="range-value">{splashDuration}s</span>
+                  </div>
+                </div>
+
+                <div className="settings-group">
+                  <h4>Chat</h4>
+                  <div className="settings-row">
+                    <label htmlFor="chat-font-size">Chat Font Size:</label>
+                    <input
+                      type="range"
+                      id="chat-font-size"
+                      min="10"
+                      max="24"
+                      step="1"
+                      value={chatFontSize}
+                      onChange={e => handleChatFontSizeChange(parseInt(e.target.value, 10))}
+                    />
+                    <span className="range-value">{chatFontSize}px</span>
+                  </div>
+
+                  <div className="settings-row">
+                    <label htmlFor="show-thinking">Show Thinking Blocks:</label>
+                    <input
+                      id="show-thinking"
+                      type="checkbox"
+                      checked={showThinking}
+                      onChange={e => handleShowThinkingChange(e.target.checked)}
+                    />
+                    <span className="settings-hint">Show Claude's thinking process in chat</span>
+                  </div>
+
+                  <div className="settings-row">
+                    <label htmlFor="send-shortcut">Send Shortcut:</label>
+                    <select
+                      id="send-shortcut"
+                      className="settings-select"
+                      value={sendShortcut}
+                      onChange={e => handleSendShortcutChange(e.target.value)}
+                    >
+                      <option value="ctrl+enter">Ctrl+Enter</option>
+                      <option value="enter">Enter (Shift+Enter for newline)</option>
+                    </select>
                   </div>
                 </div>
               </div>

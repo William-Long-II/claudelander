@@ -708,3 +708,100 @@
   min-width: 80px;
   padding: 0;
 }
+
+/* Branch Selector */
+.branch-selector {
+  position: relative;
+  margin-left: 12px;
+}
+
+.branch-selector-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--border-color, #444);
+  color: var(--text-secondary, #aaa);
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.branch-selector-toggle:hover {
+  color: var(--text-primary, #fff);
+  border-color: var(--accent-color, #61afef);
+}
+
+.branch-selector-label {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-selector-chevron {
+  opacity: 0.6;
+}
+
+.branch-selector-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  min-width: 180px;
+  background: var(--bg-secondary, #2a2a2a);
+  border: 1px solid var(--border-color, #444);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.branch-selector-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary, #aaa);
+}
+
+.branch-selector-item:hover {
+  background: var(--bg-hover, #333);
+}
+
+.branch-selector-item.active {
+  color: var(--text-primary, #fff);
+  background: var(--bg-hover, #333);
+}
+
+.branch-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-item-active-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-color, #61afef);
+  margin-left: 8px;
+}
+
+.branch-item-delete {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #666);
+  cursor: pointer;
+  padding: 0 4px;
+  margin-left: 8px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.branch-item-delete:hover {
+  color: var(--danger-color, #e06c75);
+}
