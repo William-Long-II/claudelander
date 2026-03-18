@@ -436,6 +436,34 @@
   color: var(--text-secondary, #a0a0b0);
 }
 
+/* Fork / Branch Button */
+.fork-btn {
+  background: none;
+  border: 1px solid var(--border-color, #444);
+  color: var(--text-secondary, #888);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 8px;
+}
+
+.fork-btn:hover {
+  color: var(--text-primary, #fff);
+  border-color: var(--accent-color, #61afef);
+}
+
+/* Highlight flash for branch creation feedback */
+@keyframes highlight-flash {
+  0% { background: rgba(97, 175, 239, 0.3); }
+  100% { background: transparent; }
+}
+
+.highlight-flash {
+  animation: highlight-flash 2s ease-out;
+  border-radius: 8px;
+}
+
 /* Chat Input Area */
 .chat-input-area {
   display: flex;

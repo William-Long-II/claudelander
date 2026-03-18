@@ -7,6 +7,7 @@ import type { ChatMessageData } from './ChatMessage';
 interface Props {
   message: ChatMessageData;
   onSaveAsKnowledge?: (content: string) => void;
+  onFork?: (messageId: string) => void;
 }
 
 // Simple markdown rendering — parse code blocks, bold, italic, headers, lists
@@ -70,7 +71,7 @@ function renderInline(text: string): React.ReactNode {
   });
 }
 
-export const AssistantMessage: React.FC<Props> = ({ message, onSaveAsKnowledge }) => {
+export const AssistantMessage: React.FC<Props> = ({ message, onSaveAsKnowledge, onFork }) => {
   const renderedContent = useMemo(() => renderMarkdown(message.content), [message.content]);
 
   return (
@@ -99,6 +100,15 @@ export const AssistantMessage: React.FC<Props> = ({ message, onSaveAsKnowledge }
               title="Save as knowledge"
             >
               Save as knowledge
+            </button>
+          )}
+          {onFork && !message.isStreaming && (
+            <button
+              className="fork-btn"
+              onClick={() => onFork(message.id)}
+              title="Branch from here"
+            >
+              Branch
             </button>
           )}
         </div>
