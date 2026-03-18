@@ -21,6 +21,7 @@ import {
   SymbolType,
   SessionStatus,
   ClaudeJsonEvent,
+  ClaudeConfig,
   ChatMessage,
   SessionTemplate,
   SessionTemplateCreateInput,
@@ -202,6 +203,8 @@ export interface ElectronAPI {
   claudeKill: (sessionId: string) => Promise<void>;
   claudeGetStatus: (sessionId: string) => Promise<SessionStatus>;
   claudeIsRunning: (sessionId: string) => Promise<boolean>;
+  claudeHasSession: (sessionId: string) => Promise<boolean>;
+  claudeGetResolvedConfig: (sessionId: string) => Promise<ClaudeConfig>;
   onClaudeEvent: (callback: (sessionId: string, event: ClaudeJsonEvent) => void) => () => void;
   onClaudeStateChange: (callback: (sessionId: string, status: SessionStatus) => void) => () => void;
   onClaudeEnded: (callback: (sessionId: string) => void) => () => void;

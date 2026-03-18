@@ -1,15 +1,19 @@
 import React, { useRef, useEffect } from 'react';
 import { ChatMessage, ChatMessageData } from './ChatMessage';
 import { ChatInput } from './ChatInput';
+import { SessionSettingsBar } from './SessionSettingsBar';
 import { useClaudeSession } from '../../hooks/useClaudeSession';
+import { ClaudeConfig } from '../../../shared/types';
 
 interface Props {
   sessionId: string | null;
   sessionName: string;
   workingDir: string;
+  claudeConfig?: ClaudeConfig;
+  onConfigChange?: (config: ClaudeConfig) => void;
 }
 
-export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, workingDir }) => {
+export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, workingDir, claudeConfig, onConfigChange }) => {
   const {
     messages,
     isRunning,
@@ -53,6 +57,12 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
           </span>
         )}
       </div>
+
+      <SessionSettingsBar
+        config={claudeConfig || {}}
+        onChange={(config) => onConfigChange?.(config)}
+        disabled={isRunning}
+      />
 
       <div className="chat-messages">
         {allMessages.length === 0 && (

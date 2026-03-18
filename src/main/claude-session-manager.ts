@@ -1,9 +1,17 @@
 import { spawn, ChildProcess, execSync } from 'child_process';
 import { EventEmitter } from 'events';
 import log from 'electron-log';
-import { ClaudeJsonEvent, SessionStatus, SessionState3 } from '../shared/types';
+import { ClaudeJsonEvent, SessionStatus, SessionState3, ClaudeConfig } from '../shared/types';
+import { configToCliArgs } from './claude-config-resolver';
 
 const IS_WINDOWS = process.platform === 'win32';
+
+function cleanEnvForClaude(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  // Remove CLAUDECODE so nested Claude CLI instances don't refuse to start
+  delete env.CLAUDECODE;
+  return env;
+}
 
 interface ManagedSession {
   id: string;
@@ -42,9 +50,8 @@ export class ClaudeSessionManager extends EventEmitter {
     prompt: string,
     options?: {
       groupId?: string;
-      systemPrompt?: string;
-      allowedTools?: string[];
-      disallowedTools?: string[];
+      claudeConfig?: ClaudeConfig;
+      resumeSessionId?: string;
     }
   ): void {
     if (this.sessions.has(sessionId) && this.sessions.get(sessionId)!.process) {
@@ -52,34 +59,39 @@ export class ClaudeSessionManager extends EventEmitter {
       return;
     }
 
-    const args = ['-p', '--output-format', 'stream-json'];
+    const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages'];
 
-    if (options?.systemPrompt) {
-      args.push('--append-system-prompt', options.systemPrompt);
+    // Resume a previous Claude session (e.g. after app restart)
+    if (options?.resumeSessionId) {
+      args.push('--resume', options.resumeSessionId);
     }
 
-    if (options?.allowedTools) {
-      args.push('--allowedTools', ...options.allowedTools);
+    if (options?.claudeConfig) {
+      args.push(...configToCliArgs(options.claudeConfig));
     }
 
-    if (options?.disallowedTools) {
-      args.push('--disallowedTools', ...options.disallowedTools);
-    }
-
-    // The prompt itself
-    args.push(prompt);
+    log.info(`[ClaudeSession] Spawning: claude ${args.join(' ').substring(0, 100)}`);
+    log.info(`[ClaudeSession] CWD: ${cwd}, prompt length: ${prompt.length}`);
 
     const proc = spawn('claude', args, {
       cwd,
-      env: { ...process.env },
+      env: cleanEnvForClaude(),
       stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+      shell: IS_WINDOWS,
     });
+
+    log.info(`[ClaudeSession] Process spawned, PID: ${proc.pid}`);
+
+    // Write prompt via stdin to avoid shell escaping issues on Windows
+    proc.stdin!.write(prompt);
+    proc.stdin!.end();
 
     const session: ManagedSession = {
       id: sessionId,
       cwd,
       process: proc,
-      claudeSessionId: null,
+      claudeSessionId: options?.resumeSessionId || null,
       state: 'thinking',
       description: 'Starting...',
       currentTool: null,
@@ -94,18 +106,25 @@ export class ClaudeSessionManager extends EventEmitter {
     this.emitStateChange(session);
 
     proc.stdout!.on('data', (chunk: Buffer) => {
+      log.info(`[ClaudeSession] stdout data (${chunk.length} bytes) for ${sessionId}`);
       this.handleStdoutData(sessionId, chunk);
     });
 
     proc.stderr!.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
-      log.warn(`[ClaudeSession] stderr for ${sessionId}:`, text);
+      log.info(`[ClaudeSession] stderr for ${sessionId}: ${text.substring(0, 200)}`);
       this.emit('error', { sessionId, error: text });
     });
 
     proc.on('close', (exitCode) => {
+      log.info(`[ClaudeSession] Process closed for ${sessionId}, exitCode: ${exitCode}`);
       const sess = this.sessions.get(sessionId);
       if (sess) {
+        // Flush any remaining data in stdout buffer (e.g. the result line)
+        if (sess.stdoutBuffer.trim()) {
+          this.handleStdoutData(sessionId, Buffer.from('\n'));
+        }
+        log.info(`[ClaudeSession] Claude session ID for resume: ${sess.claudeSessionId || 'NOT CAPTURED'}`);
         sess.process = null;
         sess.state = 'idle';
         sess.description = 'Idle';
@@ -126,7 +145,7 @@ export class ClaudeSessionManager extends EventEmitter {
     });
   }
 
-  sendMessage(sessionId: string, prompt: string): void {
+  sendMessage(sessionId: string, prompt: string, claudeConfig?: ClaudeConfig): void {
     const session = this.sessions.get(sessionId);
     if (!session) {
       log.error(`[ClaudeSession] No session ${sessionId} for sendMessage`);
@@ -139,20 +158,28 @@ export class ClaudeSessionManager extends EventEmitter {
       return;
     }
 
-    const args = ['-p', '--output-format', 'stream-json'];
+    const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages'];
 
     // Resume the Claude session for multi-turn
     if (session.claudeSessionId) {
       args.push('--resume', session.claudeSessionId);
     }
 
-    args.push(prompt);
+    if (claudeConfig) {
+      args.push(...configToCliArgs(claudeConfig));
+    }
 
     const proc = spawn('claude', args, {
       cwd: session.cwd,
-      env: { ...process.env },
+      env: cleanEnvForClaude(),
       stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+      shell: IS_WINDOWS,
     });
+
+    // Write prompt via stdin to avoid shell escaping issues on Windows
+    proc.stdin!.write(prompt);
+    proc.stdin!.end();
 
     session.process = proc;
     session.state = 'thinking';
@@ -171,6 +198,11 @@ export class ClaudeSessionManager extends EventEmitter {
     });
 
     proc.on('close', (exitCode) => {
+      // Flush any remaining data in stdout buffer (e.g. the result line)
+      if (session.stdoutBuffer.trim()) {
+        this.handleStdoutData(sessionId, Buffer.from('\n'));
+      }
+      log.info(`[ClaudeSession] Resume session ID after sendMessage: ${session.claudeSessionId || 'NOT CAPTURED'}`);
       session.process = null;
       session.state = 'idle';
       session.description = 'Idle';
@@ -254,6 +286,10 @@ export class ClaudeSessionManager extends EventEmitter {
     };
   }
 
+  hasSession(sessionId: string): boolean {
+    return this.sessions.has(sessionId);
+  }
+
   isSessionRunning(sessionId: string): boolean {
     const session = this.sessions.get(sessionId);
     return !!session?.process;
@@ -282,9 +318,32 @@ export class ClaudeSessionManager extends EventEmitter {
       if (!trimmed) continue;
 
       try {
-        const event: ClaudeJsonEvent = JSON.parse(trimmed);
-        this.processEvent(sessionId, event);
-        this.emit('event', { sessionId, event });
+        const parsed = JSON.parse(trimmed);
+
+        // CLI wraps API events in {"type":"stream_event","event":{...}}
+        if (parsed.type === 'stream_event' && parsed.event) {
+          const event: ClaudeJsonEvent = parsed.event;
+          this.processEvent(sessionId, event);
+          this.emit('event', { sessionId, event });
+        } else if (parsed.type === 'result') {
+          // Final result — extract session ID for resume
+          // Don't emit message_stop here; the stream_event flow already emits it
+          if (parsed.session_id) {
+            const sess = this.sessions.get(sessionId);
+            if (sess) sess.claudeSessionId = parsed.session_id;
+            log.info(`[ClaudeSession] Captured Claude session ID: ${parsed.session_id}`);
+          } else {
+            log.warn(`[ClaudeSession] Result line has no session_id:`, JSON.stringify(parsed).substring(0, 200));
+          }
+        } else if (parsed.type === 'system' || parsed.type === 'rate_limit_event') {
+          // System events (hooks, init) and rate limits — skip
+        } else if (parsed.type === 'assistant') {
+          // Full assistant message — skip (we get content from stream_events)
+        } else {
+          // Unknown wrapper — try processing as raw event
+          this.processEvent(sessionId, parsed as ClaudeJsonEvent);
+          this.emit('event', { sessionId, event: parsed as ClaudeJsonEvent });
+        }
       } catch (e) {
         // Non-JSON output (shouldn't happen in stream-json mode, but be safe)
         log.debug(`[ClaudeSession] Non-JSON line for ${sessionId}: ${trimmed.substring(0, 100)}`);

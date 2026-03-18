@@ -51,11 +51,11 @@ describe('ClaudeSessionManager', () => {
       );
     });
 
-    it('should include the user prompt in args', () => {
+    it('should write the user prompt to stdin', () => {
       manager.startSession('sess-1', '/projects/myapp', 'Fix the auth bug');
 
-      const args = mockSpawn.mock.calls[0][1];
-      expect(args).toContain('Fix the auth bug');
+      expect(mockProcess.stdin.write).toHaveBeenCalledWith('Fix the auth bug');
+      expect(mockProcess.stdin.end).toHaveBeenCalled();
     });
 
     it('should emit events when JSON data arrives on stdout', () => {

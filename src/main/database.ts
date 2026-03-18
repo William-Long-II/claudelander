@@ -129,6 +129,22 @@ function initializeTables(database: Database.Database): void {
     database.exec("ALTER TABLE groups ADD COLUMN collapsed INTEGER DEFAULT 0");
   }
 
+  // Migration: Add claude_config column to sessions if it doesn't exist
+  const sessionColumns = database.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
+  if (!sessionColumns.some(col => col.name === 'claude_config')) {
+    database.exec("ALTER TABLE sessions ADD COLUMN claude_config TEXT");
+  }
+
+  // Migration: Add claude_session_id column to sessions for resume across app restarts
+  if (!sessionColumns.some(col => col.name === 'claude_session_id')) {
+    database.exec("ALTER TABLE sessions ADD COLUMN claude_session_id TEXT");
+  }
+
+  // Migration: Add claude_config column to groups if it doesn't exist
+  if (!columns.some(col => col.name === 'claude_config')) {
+    database.exec("ALTER TABLE groups ADD COLUMN claude_config TEXT");
+  }
+
   // Migration: Create memories table if it doesn't exist
   database.exec(`
     CREATE TABLE IF NOT EXISTS memories (

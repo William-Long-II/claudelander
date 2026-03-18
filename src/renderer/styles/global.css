@@ -1365,3 +1365,58 @@ body {
   gap: 12px;
   justify-content: center;
 }
+
+/* Group Config Popover */
+.group-config-btn {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 0.85rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.group-header:hover .group-config-btn,
+.group-config-btn:focus {
+  opacity: 1;
+}
+
+.group-config-btn:hover {
+  color: #aaa;
+}
+
+.group-config-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 100;
+  background: #1e1e2e;
+  border: 1px solid #3b3b5b;
+  border-radius: 6px;
+  padding: 10px;
+  min-width: 420px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.group-config-popover h4 {
+  margin: 0 0 8px 0;
+  color: #ccc;
+  font-size: 0.85rem;
+}
+
+.group-config-close {
+  margin-top: 8px;
+  padding: 4px 12px;
+  background: #3b3b5b;
+  border: none;
+  border-radius: 4px;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.group-config-close:hover {
+  background: #4b4b6b;
+}

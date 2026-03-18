@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ApiServerStatus, PairedDevice, PairingCode, RelayConnectionStatus } from '../../shared/types';
+import { SessionSettingsBar } from './chat/SessionSettingsBar';
+import { ClaudeConfig } from '../../shared/types';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -7,7 +9,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  type SettingsTab = 'general' | 'appearance' | 'terminal' | 'sound' | 'integrations' | 'mobile';
+  type SettingsTab = 'general' | 'appearance' | 'terminal' | 'sound' | 'integrations' | 'mobile' | 'claude';
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
 
   // Mobile API state
@@ -58,6 +60,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   // Integrations state
   const [githubUser, setGithubUser] = useState<{ username: string } | null>(null);
   const [githubLoading, setGithubLoading] = useState(false);
+
+  // Claude defaults state
+  const [claudeDefaults, setClaudeDefaults] = useState<ClaudeConfig>({});
 
   // Error state for surfacing errors to users
   const [error, setError] = useState<string | null>(null);
@@ -158,6 +163,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     };
 
     loadState();
+  }, [isOpen]);
+
+  // Load claude defaults
+  useEffect(() => {
+    if (!isOpen) return;
+    window.electronAPI.getPreference('claude.defaultConfig').then(raw => {
+      if (raw) {
+        try { setClaudeDefaults(JSON.parse(raw)); } catch {}
+      }
+    });
   }, [isOpen]);
 
   // Listen for GitHub auth changes
@@ -393,6 +408,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     await window.electronAPI.setPreference('enableNotifications', enabled.toString());
   }, []);
 
+  // Claude defaults handler
+  const handleClaudeDefaultsChange = (config: ClaudeConfig) => {
+    setClaudeDefaults(config);
+    window.electronAPI.setPreference('claude.defaultConfig', JSON.stringify(config));
+  };
+
   // Integrations handlers
   const handleGitHubLogin = useCallback(async () => {
     setGithubLoading(true);
@@ -496,6 +517,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               onClick={() => setActiveTab('integrations')}
             >
               Integrations
+            </button>
+            <button
+              className={`settings-nav-item ${activeTab === 'claude' ? 'active' : ''}`}
+              onClick={() => setActiveTab('claude')}
+            >
+              Claude
             </button>
           </nav>
 
@@ -995,6 +1022,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     </div>
                   </>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'claude' && (
+              <div className="settings-section">
+                <h3>Claude Defaults</h3>
+                <p className="settings-hint" style={{ marginBottom: '12px' }}>
+                  Default settings for new sessions. Groups and individual sessions can override these.
+                </p>
+                <SessionSettingsBar
+                  config={claudeDefaults}
+                  onChange={handleClaudeDefaultsChange}
+                />
               </div>
             )}
           </div>

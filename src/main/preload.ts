@@ -325,6 +325,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('claude:status', sessionId),
   claudeIsRunning: (sessionId: string) =>
     ipcRenderer.invoke('claude:isRunning', sessionId),
+  claudeHasSession: (sessionId: string) =>
+    ipcRenderer.invoke('claude:hasSession', sessionId),
+  claudeGetResolvedConfig: (sessionId: string) =>
+    ipcRenderer.invoke('claude:getResolvedConfig', sessionId),
   onClaudeEvent: (callback: (sessionId: string, event: any) => void) => {
     const handler = (_: any, sessionId: string, event: any) => callback(sessionId, event);
     ipcRenderer.on('claude:event', handler);

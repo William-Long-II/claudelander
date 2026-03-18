@@ -59,19 +59,14 @@ export function useSessions() {
     });
   }, []);
 
-  const updateSessionState = useCallback(async (id: string, state: SessionState) => {
-    try {
-      const updates = { state, lastActivityAt: new Date() };
-      await window.electronAPI.updateDbSession(id, updates);
-      setSessions(prev => prev.map(s =>
-        s.id === id
-          ? { ...s, ...updates }
-          : s
-      ));
-    } catch (error) {
-      console.error('Failed to update session state:', error);
-      // Don't update state - DB failed
-    }
+  // Synchronous local-state update for sidebar — main process already handles the DB write,
+  // so we only need to keep the renderer's sessions array in sync immediately.
+  const updateSessionState = useCallback((id: string, state: SessionState) => {
+    setSessions(prev => prev.map(s =>
+      s.id === id
+        ? { ...s, state, lastActivityAt: new Date() }
+        : s
+    ));
   }, []);
 
   const updateSession = useCallback(async (id: string, updates: Partial<Session>) => {

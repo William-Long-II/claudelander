@@ -26,6 +26,7 @@ import { getApiServer } from './api';
 import { getVectorSearchManager, disposeVectorSearchManager } from './vector-search';
 import { openInEditor, detectAvailableEditors, getEditorOptions, EditorType } from './editor-launcher';
 import { claudeSessionManager } from './claude-session-manager';
+import { resolveClaudeConfig } from './claude-config-resolver';
 
 // Global error handlers to catch uncaught exceptions and prevent silent crashes
 process.on('uncaughtException', (error: Error) => {
@@ -374,6 +375,15 @@ function createWindow(): void {
   });
 
   claudeSessionManager.on('session-ended', ({ sessionId }: { sessionId: string }) => {
+    // Persist the Claude session ID for resume across app restarts
+    const claudeSessionId = claudeSessionManager.getClaudeSessionId(sessionId);
+    if (claudeSessionId) {
+      try {
+        sessionsRepo.setClaudeSessionId(sessionId, claudeSessionId);
+      } catch (error) {
+        log.error('Failed to persist Claude session ID:', error);
+      }
+    }
     mainWindow?.webContents.send('claude:ended', sessionId);
   });
 
@@ -451,20 +461,30 @@ function safeOn(channel: string, handler: (...args: any[]) => void): void {
 // ============================================================================
 
 safeHandle('claude:start', async (sessionId: string, cwd: string, prompt: string, options?: any) => {
+  log.info(`[ClaudeSession IPC] claude:start called — session=${sessionId}, cwd=${cwd}, prompt=${prompt.substring(0, 50)}`);
   const sessions = sessionsRepo.getAllSessions();
   const session = sessions.find(s => s.id === sessionId);
-  const groupId = session?.groupId || null;
+  const groupId = session?.groupId || undefined;
+  const resolvedConfig = resolveClaudeConfig(sessionId);
+
+  // Check for stored Claude session ID to resume across app restarts
+  const storedClaudeSessionId = session?.claudeSessionId || undefined;
+  if (storedClaudeSessionId) {
+    log.info(`[ClaudeSession IPC] Resuming stored Claude session: ${storedClaudeSessionId}`);
+  }
 
   claudeSessionManager.startSession(sessionId, cwd, prompt, {
     groupId,
-    ...options,
+    claudeConfig: resolvedConfig,
+    resumeSessionId: storedClaudeSessionId,
   });
 
   soundManager.playStartSound();
 });
 
 safeHandle('claude:send', (sessionId: string, prompt: string) => {
-  claudeSessionManager.sendMessage(sessionId, prompt);
+  const resolvedConfig = resolveClaudeConfig(sessionId);
+  claudeSessionManager.sendMessage(sessionId, prompt, resolvedConfig);
 });
 
 safeHandle('claude:kill', (sessionId: string) => {
@@ -477,6 +497,14 @@ safeHandle('claude:status', (sessionId: string) => {
 
 safeHandle('claude:isRunning', (sessionId: string) => {
   return claudeSessionManager.isSessionRunning(sessionId);
+});
+
+safeHandle('claude:hasSession', (sessionId: string) => {
+  return claudeSessionManager.hasSession(sessionId);
+});
+
+safeHandle('claude:getResolvedConfig', (sessionId: string) => {
+  return resolveClaudeConfig(sessionId);
 });
 
 // Database IPC Handlers - Groups

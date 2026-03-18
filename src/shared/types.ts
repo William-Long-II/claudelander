@@ -1,5 +1,15 @@
 export type SessionState = 'idle' | 'working' | 'waiting' | 'error' | 'stopped';
 
+export interface ClaudeConfig {
+  model?: string;
+  effort?: string;
+  permissionMode?: string;
+  maxBudgetUsd?: number;
+  systemPrompt?: string;
+  allowedTools?: string[];
+  disallowedTools?: string[];
+}
+
 export interface Session {
   id: string;
   groupId: string;
@@ -10,6 +20,8 @@ export interface Session {
   order: number;
   createdAt: Date;
   lastActivityAt: Date;
+  claudeConfig?: ClaudeConfig;
+  claudeSessionId?: string | null;
 }
 
 export interface Group {
@@ -21,6 +33,7 @@ export interface Group {
   createdAt: Date;
   parentId: string | null;
   collapsed: boolean;
+  claudeConfig?: ClaudeConfig;
 }
 
 export interface AppState {

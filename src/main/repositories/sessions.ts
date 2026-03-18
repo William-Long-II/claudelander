@@ -1,5 +1,6 @@
 import { getDatabase } from '../database';
-import { Session, SessionState } from '../../shared/types';
+import { Session, SessionState, ClaudeConfig } from '../../shared/types';
+import log from 'electron-log';
 
 export function getAllSessions(): Session[] {
   const db = getDatabase();
@@ -15,14 +16,16 @@ export function getAllSessions(): Session[] {
     order: row.order,
     createdAt: new Date(row.created_at),
     lastActivityAt: new Date(row.last_activity_at),
+    claudeConfig: row.claude_config ? (() => { try { return JSON.parse(row.claude_config); } catch { log.warn(`[Sessions] Malformed claude_config for session ${row.id}`); return undefined; } })() : undefined,
+    claudeSessionId: row.claude_session_id || null,
   }));
 }
 
 export function createSession(session: Session): void {
   const db = getDatabase();
   db.prepare(`
-    INSERT INTO sessions (id, group_id, name, working_dir, state, shell_type, "order", created_at, last_activity_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO sessions (id, group_id, name, working_dir, state, shell_type, "order", created_at, last_activity_at, claude_config)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     session.id,
     session.groupId,
@@ -32,7 +35,8 @@ export function createSession(session: Session): void {
     session.shellType,
     session.order,
     session.createdAt.toISOString(),
-    session.lastActivityAt.toISOString()
+    session.lastActivityAt.toISOString(),
+    session.claudeConfig ? JSON.stringify(session.claudeConfig) : null
   );
 }
 
@@ -61,11 +65,25 @@ export function updateSession(id: string, updates: Partial<Session>): void {
     fields.push('last_activity_at = ?');
     values.push(updates.lastActivityAt.toISOString());
   }
+  if (updates.claudeConfig !== undefined) {
+    fields.push('claude_config = ?');
+    values.push(updates.claudeConfig ? JSON.stringify(updates.claudeConfig) : null);
+  }
+
+  if ((updates as any).claudeSessionId !== undefined) {
+    fields.push('claude_session_id = ?');
+    values.push((updates as any).claudeSessionId);
+  }
 
   if (fields.length > 0) {
     values.push(id);
     db.prepare(`UPDATE sessions SET ${fields.join(', ')} WHERE id = ?`).run(...values);
   }
+}
+
+export function setClaudeSessionId(sessionId: string, claudeSessionId: string): void {
+  const db = getDatabase();
+  db.prepare('UPDATE sessions SET claude_session_id = ? WHERE id = ?').run(claudeSessionId, sessionId);
 }
 
 export function deleteSession(id: string): void {

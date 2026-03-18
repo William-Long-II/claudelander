@@ -16,6 +16,7 @@ import { useGroups } from './store/groups';
 import { useSharing } from './store/sharing';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { SessionTemplate } from '../shared/types';
+import { SessionSettingsBar } from './components/chat/SessionSettingsBar';
 import './styles/global.css';
 import './styles/context-menu.css';
 import './styles/chat.css';
@@ -107,6 +108,9 @@ const App: React.FC = () => {
   // Command palette state
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
+  // Group config popover state
+  const [configGroupId, setConfigGroupId] = useState<string | null>(null);
+
   // Destructive action confirmation state
   const [confirmAction, setConfirmAction] = useState<{
     type: 'closeSession' | 'deleteGroup';
@@ -125,6 +129,7 @@ const App: React.FC = () => {
     setActiveSessionId,
     createSession,
     updateSession,
+    updateSessionState,
     removeSession,
     getSessionsByGroup,
     getStateCounts,
@@ -138,6 +143,28 @@ const App: React.FC = () => {
   // Get the active session's group ID for memory panel
   const activeSession = sessions.find(s => s.id === activeSessionId);
   const activeGroupId = activeSession?.groupId || null;
+
+  // Sync sidebar session states with Claude session state changes
+  useEffect(() => {
+    const unsubState = window.electronAPI.onClaudeStateChange((sid: string, status: any) => {
+      // Map SessionState3 to legacy SessionState for the sidebar
+      const state = status.state;
+      const legacyState = state === 'idle' || state === 'stopped' ? 'idle'
+        : state === 'error' ? 'error'
+        : state === 'waiting' ? 'waiting'
+        : 'working';
+      updateSessionState(sid, legacyState as any);
+    });
+
+    const unsubEnded = window.electronAPI.onClaudeEnded((sid: string) => {
+      updateSessionState(sid, 'idle');
+    });
+
+    return () => {
+      unsubState();
+      unsubEnded();
+    };
+  }, [updateSessionState]);
 
   // Dismiss color picker on Escape or click-outside
   useEffect(() => {
@@ -1018,6 +1045,14 @@ const App: React.FC = () => {
                   </button>
                 </div>
                 <button
+                  className="group-config-btn"
+                  title="Claude settings for this group"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfigGroupId(configGroupId === group.id ? null : group.id);
+                  }}
+                >&#9881;</button>
+                <button
                   className="icon-button small"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
@@ -1028,6 +1063,21 @@ const App: React.FC = () => {
                 >
                   +
                 </button>
+                {configGroupId === group.id && (
+                  <div className="group-config-popover" onClick={e => e.stopPropagation()}>
+                    <h4>Claude Settings — {group.name}</h4>
+                    <SessionSettingsBar
+                      config={group.claudeConfig || {}}
+                      onChange={(config) => {
+                        updateGroup(group.id, { claudeConfig: config });
+                      }}
+                    />
+                    <button
+                      className="group-config-close"
+                      onClick={() => setConfigGroupId(null)}
+                    >Done</button>
+                  </div>
+                )}
               </div>
               {!group.collapsed && (
                 <div
@@ -1081,7 +1131,7 @@ const App: React.FC = () => {
                     {sharingSessions.has(session.id) && (
                       <span className="share-indicator" title="Sharing" draggable={false}>⇄</span>
                     )}
-                    <span className={`status-pill ${session.state}`} draggable={false}>{session.state}</span>
+                    <span className={`status-pill ${session.state}`} draggable={false}>{session.state.charAt(0).toUpperCase() + session.state.slice(1)}</span>
                     <button
                       className="session-close"
                       draggable={false}
@@ -1192,6 +1242,14 @@ const App: React.FC = () => {
                     </button>
                   </div>
                   <button
+                    className="group-config-btn"
+                    title="Claude settings for this group"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfigGroupId(configGroupId === subGroup.id ? null : subGroup.id);
+                    }}
+                  >&#9881;</button>
+                  <button
                     className="icon-button small"
                     onClick={() => handleNewSession(subGroup.id)}
                     title="New Session"
@@ -1199,6 +1257,21 @@ const App: React.FC = () => {
                   >
                     +
                   </button>
+                  {configGroupId === subGroup.id && (
+                    <div className="group-config-popover" onClick={e => e.stopPropagation()}>
+                      <h4>Claude Settings — {subGroup.name}</h4>
+                      <SessionSettingsBar
+                        config={subGroup.claudeConfig || {}}
+                        onChange={(config) => {
+                          updateGroup(subGroup.id, { claudeConfig: config });
+                        }}
+                      />
+                      <button
+                        className="group-config-close"
+                        onClick={() => setConfigGroupId(null)}
+                      >Done</button>
+                    </div>
+                  )}
                 </div>
                 {!subGroup.collapsed && (
                   <div
@@ -1252,7 +1325,7 @@ const App: React.FC = () => {
                       {sharingSessions.has(session.id) && (
                         <span className="share-indicator" title="Sharing">⇄</span>
                       )}
-                      <span className={`status-pill ${session.state}`}>{session.state}</span>
+                      <span className={`status-pill ${session.state}`}>{session.state.charAt(0).toUpperCase() + session.state.slice(1)}</span>
                       <button
                         className="session-close"
                         onClick={(e) => {
@@ -1348,6 +1421,8 @@ const App: React.FC = () => {
                 sessionId={session.id}
                 sessionName={session.name}
                 workingDir={session.workingDir}
+                claudeConfig={session.claudeConfig}
+                onConfigChange={(config) => updateSession(session.id, { claudeConfig: config })}
               />
             </div>
           ))}
