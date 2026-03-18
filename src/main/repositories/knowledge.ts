@@ -268,6 +268,30 @@ export function getPromotionHistory(nodeId: string): KnowledgePromotion[] {
   return rows.map(rowToPromotion);
 }
 
+// ── Knowledge Injection ──────────────────────────────────────────────────
+
+export function getKnowledgeForInjection(options?: {
+  scopeGroupId?: string;
+  scopeSessionId?: string;
+  limit?: number;
+}): KnowledgeNode[] {
+  const db = getDatabase();
+  const limit = options?.limit ?? 20;
+  const rows = db.prepare(`
+    SELECT * FROM knowledge_nodes
+    WHERE confidence >= 0.3
+      AND (scope_group_id IS NULL OR scope_group_id = ?)
+      AND (scope_session_id IS NULL OR scope_session_id = ?)
+    ORDER BY tier DESC, confidence DESC, last_reinforced_at DESC
+    LIMIT ?
+  `).all(
+    options?.scopeGroupId ?? null,
+    options?.scopeSessionId ?? null,
+    limit
+  ) as KnowledgeNodeRow[];
+  return rows.map(rowToNode);
+}
+
 // ── Confidence Decay ─────────────────────────────────────────────────────────
 
 export function getNodesWithDecayedConfidence(daysSinceReinforcement: number): KnowledgeNode[] {

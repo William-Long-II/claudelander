@@ -2,6 +2,7 @@ import { ClaudeConfig } from '../shared/types';
 import * as sessionsRepo from './repositories/sessions';
 import * as groupsRepo from './repositories/groups';
 import * as prefsRepo from './repositories/preferences';
+import * as knowledgeRepo from './repositories/knowledge';
 import log from 'electron-log';
 
 // Shell metacharacters that could enable command injection when spawn uses shell: true
@@ -81,4 +82,19 @@ export function configToCliArgs(config: ClaudeConfig): string[] {
   }
 
   return args;
+}
+
+export function buildKnowledgeContext(sessionId: string, groupId?: string): string {
+  const nodes = knowledgeRepo.getKnowledgeForInjection({
+    scopeGroupId: groupId,
+    scopeSessionId: sessionId,
+    limit: 20,
+  });
+  if (nodes.length === 0) return '';
+  const lines = nodes.map(n => {
+    const tierLabel = n.tier === 3 ? 'Principle' : n.tier === 2 ? 'Pattern' : 'Fact';
+    const domains = n.domains.length > 0 ? ` [${n.domains.join(', ')}]` : '';
+    return `- [${tierLabel}${domains}] ${n.content}`;
+  });
+  return `The following knowledge has been accumulated from previous sessions. Use it to inform your responses:\n${lines.join('\n')}\n\n`;
 }

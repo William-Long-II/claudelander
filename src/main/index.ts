@@ -26,7 +26,7 @@ import { getApiServer } from './api';
 import { getVectorSearchManager, disposeVectorSearchManager } from './vector-search';
 import { openInEditor, detectAvailableEditors, getEditorOptions, EditorType } from './editor-launcher';
 import { claudeSessionManager } from './claude-session-manager';
-import { resolveClaudeConfig } from './claude-config-resolver';
+import { resolveClaudeConfig, buildKnowledgeContext } from './claude-config-resolver';
 
 // Global error handlers to catch uncaught exceptions and prevent silent crashes
 process.on('uncaughtException', (error: Error) => {
@@ -473,7 +473,11 @@ safeHandle('claude:start', async (sessionId: string, cwd: string, prompt: string
     log.info(`[ClaudeSession IPC] Resuming stored Claude session: ${storedClaudeSessionId}`);
   }
 
-  claudeSessionManager.startSession(sessionId, cwd, prompt, {
+  // Build knowledge context to prepend to prompt
+  const knowledgeContext = buildKnowledgeContext(sessionId, session?.groupId);
+  const augmentedPrompt = knowledgeContext ? knowledgeContext + prompt : prompt;
+
+  claudeSessionManager.startSession(sessionId, cwd, augmentedPrompt, {
     groupId,
     claudeConfig: resolvedConfig,
     resumeSessionId: storedClaudeSessionId,
@@ -484,7 +488,11 @@ safeHandle('claude:start', async (sessionId: string, cwd: string, prompt: string
 
 safeHandle('claude:send', (sessionId: string, prompt: string) => {
   const resolvedConfig = resolveClaudeConfig(sessionId);
-  claudeSessionManager.sendMessage(sessionId, prompt, resolvedConfig);
+  const sessions = sessionsRepo.getAllSessions();
+  const session = sessions.find(s => s.id === sessionId);
+  const knowledgeContext = buildKnowledgeContext(sessionId, session?.groupId);
+  const augmentedPrompt = knowledgeContext ? knowledgeContext + prompt : prompt;
+  claudeSessionManager.sendMessage(sessionId, augmentedPrompt, resolvedConfig);
 });
 
 safeHandle('claude:kill', (sessionId: string) => {
