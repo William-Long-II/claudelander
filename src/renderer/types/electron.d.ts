@@ -78,6 +78,7 @@ export interface ElectronAPI {
 
   // Chat Messages
   chatGetMessages: (sessionId: string, limit?: number) => Promise<ChatMessage[]>;
+  chatGetMessagesByBranch: (branchId: string, limit?: number) => Promise<ChatMessage[]>;
   chatCreateMessage: (input: any) => Promise<ChatMessage>;
   chatSearchMessages: (query: string, sessionId?: string, limit?: number) => Promise<ChatMessage[]>;
 

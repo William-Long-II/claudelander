@@ -98,6 +98,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Chat Messages
   chatGetMessages: (sessionId: string, limit?: number) =>
     ipcRenderer.invoke('chat:getMessages', sessionId, limit),
+  chatGetMessagesByBranch: (branchId: string, limit?: number) =>
+    ipcRenderer.invoke('chat:getMessagesByBranch', branchId, limit),
   chatCreateMessage: (input: any) =>
     ipcRenderer.invoke('chat:createMessage', input),
   chatSearchMessages: (query: string, sessionId?: string, limit?: number) =>

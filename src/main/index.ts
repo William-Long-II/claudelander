@@ -669,6 +669,10 @@ safeHandle('chat:getMessages', (sessionId: string, limit?: number) => {
   return chatMessagesRepo.getMessagesBySession(sessionId, limit);
 });
 
+safeHandle('chat:getMessagesByBranch', (branchId: string, limit?: number) => {
+  return chatMessagesRepo.getMessagesByBranch(branchId, limit);
+});
+
 safeHandle('chat:createMessage', (input: any) => {
   return chatMessagesRepo.createChatMessage(input);
 });

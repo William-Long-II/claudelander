@@ -10,6 +10,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [status, setStatus] = useState<any>(null);
+  const [currentBranchId, setCurrentBranchId] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState('');
   const [streamingThinking, setStreamingThinking] = useState('');
   const [streamingToolCalls, setStreamingToolCalls] = useState<any[]>([]);
@@ -22,33 +23,41 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
   const pendingToolUseRef = useRef(false);
   const lastUserContentRef = useRef('');
 
-  // Load saved messages from database on session change
+  // Load saved messages from database on session change or branch switch
   useEffect(() => {
     if (!sessionId) {
       setMessages([]);
       return;
     }
 
-    // Load from DB via IPC
-    window.electronAPI.chatGetMessages(sessionId).then((dbMessages) => {
-      if (dbMessages && dbMessages.length > 0) {
-        setMessages(dbMessages.map((m: any) => ({
-          id: m.id,
-          role: m.role,
-          content: m.content,
-          messageType: m.messageType,
-          thinking: m.thinking || null,
-          toolCalls: m.toolCalls || null,
-          createdAt: new Date(m.createdAt),
-          isStreaming: false,
-        })));
-      } else {
+    const loadMessages = async () => {
+      try {
+        let dbMessages;
+        if (currentBranchId) {
+          dbMessages = await window.electronAPI.chatGetMessagesByBranch(currentBranchId);
+        } else {
+          dbMessages = await window.electronAPI.chatGetMessages(sessionId);
+        }
+        if (dbMessages && dbMessages.length > 0) {
+          setMessages(dbMessages.map((m: any) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            messageType: m.messageType,
+            thinking: m.thinking || null,
+            toolCalls: m.toolCalls || null,
+            createdAt: new Date(m.createdAt),
+            isStreaming: false,
+          })));
+        } else {
+          setMessages([]);
+        }
+      } catch {
         setMessages([]);
       }
-    }).catch(() => {
-      setMessages([]);
-    });
-  }, [sessionId]);
+    };
+    loadMessages();
+  }, [sessionId, currentBranchId]);
 
   // Subscribe to Claude events
   useEffect(() => {
@@ -287,6 +296,10 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
     }
   }, [sessionId]);
 
+  const switchBranch = useCallback((branchId: string | null) => {
+    setCurrentBranchId(branchId);
+  }, []);
+
   // Build the streaming message for display
   const currentStreamingMessage: ChatMessageData | null = isRunning && (streamingContent || streamingToolCalls.length > 0)
     ? {
@@ -308,5 +321,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
     currentStreamingMessage,
     sendMessage,
     stopSession,
+    currentBranchId,
+    switchBranch,
   };
 }

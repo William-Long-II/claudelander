@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { ChatMessage, ChatMessageData } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { SessionSettingsBar } from './SessionSettingsBar';
+import { BranchSelector } from './BranchSelector';
 import { useClaudeSession } from '../../hooks/useClaudeSession';
 import { ClaudeConfig } from '../../../shared/types';
 
@@ -23,6 +24,8 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
     currentStreamingMessage,
     sendMessage,
     stopSession,
+    currentBranchId,
+    switchBranch,
   } = useClaudeSession({ sessionId });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -99,6 +102,14 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
           <span className={`chat-status ${status.state}`}>
             {status.description}
           </span>
+        )}
+        {sessionId && (
+          <BranchSelector
+            sessionId={sessionId}
+            currentBranchId={currentBranchId}
+            onBranchSwitch={switchBranch}
+            onFork={handleFork}
+          />
         )}
       </div>
 
