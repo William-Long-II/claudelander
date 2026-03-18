@@ -20,6 +20,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
   const toolInputBufferRef = useRef('');
   // Track whether we're in a multi-turn tool-use flow (don't finalize mid-turn)
   const pendingToolUseRef = useRef(false);
+  const lastUserContentRef = useRef('');
 
   // Load saved messages from database on session change
   useEffect(() => {
@@ -176,6 +177,15 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
             toolCalls: finalMessage.toolCalls,
             thinking: finalMessage.thinking,
           });
+
+          // Auto-extract knowledge from the exchange
+          if (lastUserContentRef.current && finalContent) {
+            window.electronAPI.knowledgeExtractFromChat(
+              lastUserContentRef.current,
+              finalContent,
+              sid,
+            ).catch(err => console.warn('Knowledge extraction failed:', err));
+          }
           break;
         }
       }
@@ -221,6 +231,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
       thinkingRef.current = '';
       toolCallsRef.current = [];
       pendingToolUseRef.current = false;
+      lastUserContentRef.current = '';
       setStreamingContent('');
       setStreamingThinking('');
       setStreamingToolCalls([]);
@@ -236,6 +247,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
 
   const sendMessage = useCallback(async (content: string) => {
     if (!sessionId || !content.trim()) return;
+    lastUserContentRef.current = content;
 
     // Add user message
     const userMsg: ChatMessageData = {

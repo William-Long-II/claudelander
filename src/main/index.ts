@@ -27,6 +27,7 @@ import { getVectorSearchManager, disposeVectorSearchManager } from './vector-sea
 import { openInEditor, detectAvailableEditors, getEditorOptions, EditorType } from './editor-launcher';
 import { claudeSessionManager } from './claude-session-manager';
 import { resolveClaudeConfig, buildKnowledgeContext } from './claude-config-resolver';
+import { extractKnowledgeCandidates } from './knowledge/extractor';
 
 // Global error handlers to catch uncaught exceptions and prevent silent crashes
 process.on('uncaughtException', (error: Error) => {
@@ -714,6 +715,26 @@ safeHandle('knowledge:pin', (id: string, pinned: boolean) => {
 safeHandle('knowledge:delete', (id: string) => {
   knowledgeRepo.deleteKnowledgeNode(id);
   return true;
+});
+
+safeHandle('knowledge:extractFromChat', (userContent: string, assistantContent: string, sessionId: string, groupId?: string) => {
+  const candidates = extractKnowledgeCandidates(userContent, assistantContent);
+  const created = [];
+  for (const candidate of candidates) {
+    const node = knowledgeRepo.createKnowledgeNode({
+      id: randomUUID(),
+      tier: 1 as KnowledgeTier,
+      content: candidate.content,
+      source: 'auto-extracted',
+      confidence: candidate.confidence,
+      domains: candidate.domains,
+      tags: [candidate.trigger, 'auto-captured'],
+      scopeSessionId: sessionId,
+      scopeGroupId: groupId || null,
+    });
+    created.push(node);
+  }
+  return created;
 });
 
 // Preferences IPC Handlers

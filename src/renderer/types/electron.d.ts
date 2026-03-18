@@ -197,6 +197,7 @@ export interface ElectronAPI {
   knowledgePromote: (id: string, toTier: number, evidence?: string[]) => Promise<KnowledgePromotion | null>;
   knowledgePin: (id: string, pinned: boolean) => Promise<boolean>;
   knowledgeDelete: (id: string) => Promise<boolean>;
+  knowledgeExtractFromChat: (userContent: string, assistantContent: string, sessionId: string, groupId?: string) => Promise<any[]>;
 
   // Claude Session API (3.0)
   claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) => Promise<void>;

@@ -315,6 +315,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('knowledge:pin', id, pinned),
   knowledgeDelete: (id: string) =>
     ipcRenderer.invoke('knowledge:delete', id),
+  knowledgeExtractFromChat: (userContent: string, assistantContent: string, sessionId: string, groupId?: string) =>
+    ipcRenderer.invoke('knowledge:extractFromChat', userContent, assistantContent, sessionId, groupId),
 
   // Claude Session API (3.0)
   claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) =>
