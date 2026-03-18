@@ -28,6 +28,7 @@ import { openInEditor, detectAvailableEditors, getEditorOptions, EditorType } fr
 import { claudeSessionManager } from './claude-session-manager';
 import { resolveClaudeConfig, buildKnowledgeContext } from './claude-config-resolver';
 import { extractKnowledgeCandidates } from './knowledge/extractor';
+import { findPromotionCandidates, applyDecayPass } from './knowledge/promotion-engine';
 
 // Global error handlers to catch uncaught exceptions and prevent silent crashes
 process.on('uncaughtException', (error: Error) => {
@@ -336,6 +337,51 @@ function createWindow(): void {
   }).catch((err) => {
     log.error('[Main] Failed to auto-start API server:', err);
   });
+
+  // Run knowledge promotion engine periodically
+  const runPromotionCycle = () => {
+    try {
+      const candidates = findPromotionCandidates();
+      for (const candidate of candidates) {
+        // Dedup: check if similar promoted content already exists at target tier
+        const existing = knowledgeRepo.searchKnowledgeNodes(candidate.proposedContent.substring(0, 50), 5);
+        const isDuplicate = existing.some(n => n.tier === candidate.toTier && n.content === candidate.proposedContent);
+        if (isDuplicate) continue;
+
+        const id = randomUUID();
+        knowledgeRepo.createKnowledgeNode({
+          id,
+          tier: candidate.toTier,
+          content: candidate.proposedContent,
+          source: 'promoted',
+          domains: candidate.domains,
+          tags: ['auto-promoted'],
+        });
+        knowledgeRepo.logPromotion({
+          id: randomUUID(),
+          nodeId: id,
+          fromTier: candidate.fromTier,
+          toTier: candidate.toTier,
+          trigger: candidate.trigger,
+          evidence: candidate.evidence,
+        });
+      }
+      if (candidates.length > 0) {
+        log.info(`[Knowledge] Promoted ${candidates.length} knowledge nodes`);
+      }
+
+      const decayed = applyDecayPass();
+      if (decayed > 0) {
+        log.info(`[Knowledge] Applied confidence decay to ${decayed} nodes`);
+      }
+    } catch (error) {
+      log.error('[Knowledge] Promotion cycle error:', error);
+    }
+  };
+
+  // Run on startup (delayed to not block launch), then every 30 minutes
+  setTimeout(runPromotionCycle, 10000);
+  const promotionInterval = setInterval(runPromotionCycle, 30 * 60 * 1000);
 
   // Vector search event forwarding
   const vsManager = getVectorSearchManager();
