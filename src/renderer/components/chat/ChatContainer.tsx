@@ -11,9 +11,11 @@ interface Props {
   workingDir: string;
   claudeConfig?: ClaudeConfig;
   onConfigChange?: (config: ClaudeConfig) => void;
+  scrollToMessageId?: string | null;
+  onScrollComplete?: () => void;
 }
 
-export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, workingDir, claudeConfig, onConfigChange }) => {
+export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, workingDir, claudeConfig, onConfigChange, scrollToMessageId, onScrollComplete }) => {
   const {
     messages,
     isRunning,
@@ -29,6 +31,22 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, currentStreamingMessage?.content]);
+
+  // Scroll to specific message (from search navigation)
+  useEffect(() => {
+    if (!scrollToMessageId) return;
+    // Small delay to allow DOM to update after session switch
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`msg-${scrollToMessageId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('highlight-flash');
+        setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+      }
+      onScrollComplete?.();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [scrollToMessageId, onScrollComplete]);
 
   const handleSaveAsKnowledge = useCallback((content: string) => {
     window.electronAPI.knowledgeCreate(content, {
@@ -98,7 +116,9 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
         )}
 
         {allMessages.map((msg) => (
-          <ChatMessage key={msg.id} message={msg} onSaveAsKnowledge={handleSaveAsKnowledge} onFork={handleFork} />
+          <div key={msg.id} id={`msg-${msg.id}`}>
+            <ChatMessage message={msg} onSaveAsKnowledge={handleSaveAsKnowledge} onFork={handleFork} />
+          </div>
         ))}
 
         <div ref={messagesEndRef} />

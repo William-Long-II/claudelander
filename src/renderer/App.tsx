@@ -106,6 +106,9 @@ const App: React.FC = () => {
   // Chat search modal state
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
 
+  // Scroll-to-message state (for search navigation)
+  const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null);
+
   // Command palette state
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
@@ -1435,6 +1438,8 @@ const App: React.FC = () => {
                 workingDir={session.workingDir}
                 claudeConfig={session.claudeConfig}
                 onConfigChange={(config) => updateSession(session.id, { claudeConfig: config })}
+                scrollToMessageId={session.id === activeSessionId ? scrollToMessageId : null}
+                onScrollComplete={() => setScrollToMessageId(null)}
               />
             </div>
           ))}
@@ -1632,8 +1637,10 @@ const App: React.FC = () => {
       <SearchModal
         isOpen={chatSearchOpen}
         onClose={() => setChatSearchOpen(false)}
-        onNavigate={(sessionId) => {
+        onNavigate={(sessionId, messageId) => {
           setActiveSessionId(sessionId);
+          setScrollToMessageId(messageId);
+          setChatSearchOpen(false);
         }}
         sessions={sessions}
       />
