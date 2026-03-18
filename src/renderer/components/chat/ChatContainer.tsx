@@ -4,6 +4,7 @@ import { ChatInput } from './ChatInput';
 import { SessionSettingsBar } from './SessionSettingsBar';
 import { BranchSelector } from './BranchSelector';
 import { useClaudeSession } from '../../hooks/useClaudeSession';
+import { useChatPreferences } from '../../hooks/useChatPreferences';
 import { ClaudeConfig } from '../../../shared/types';
 
 interface Props {
@@ -28,6 +29,7 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
     switchBranch,
   } = useClaudeSession({ sessionId });
 
+  const chatPrefs = useChatPreferences();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new messages
@@ -119,7 +121,7 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
         disabled={isRunning}
       />
 
-      <div className="chat-messages">
+      <div className="chat-messages" style={{ fontSize: `${chatPrefs.chatFontSize}px` }}>
         {allMessages.length === 0 && (
           <div className="chat-welcome">
             <p>Start a conversation with Claude. Your messages are saved and searchable.</p>
@@ -128,7 +130,7 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
 
         {allMessages.map((msg) => (
           <div key={msg.id} id={`msg-${msg.id}`}>
-            <ChatMessage message={msg} onSaveAsKnowledge={handleSaveAsKnowledge} onFork={handleFork} />
+            <ChatMessage message={msg} onSaveAsKnowledge={handleSaveAsKnowledge} onFork={handleFork} showThinking={chatPrefs.showThinking} />
           </div>
         ))}
 
@@ -140,6 +142,7 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
         onStop={stopSession}
         isRunning={isRunning}
         disabled={!sessionId}
+        sendShortcut={chatPrefs.sendShortcut}
       />
     </div>
   );

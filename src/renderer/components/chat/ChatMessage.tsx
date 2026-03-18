@@ -19,14 +19,15 @@ interface ChatMessageProps {
   message: ChatMessageData;
   onSaveAsKnowledge?: (content: string) => void;
   onFork?: (messageId: string) => void;
+  showThinking?: boolean;
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onSaveAsKnowledge, onFork }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onSaveAsKnowledge, onFork, showThinking }) => {
   switch (message.role) {
     case 'user':
       return <UserMessage message={message} />;
     case 'assistant':
-      return <AssistantMessage message={message} onSaveAsKnowledge={onSaveAsKnowledge} onFork={onFork} />;
+      return <AssistantMessage message={message} onSaveAsKnowledge={onSaveAsKnowledge} onFork={onFork} showThinking={showThinking} />;
     case 'system':
     case 'error':
       return <SystemMessage message={message} />;

@@ -8,6 +8,7 @@ interface Props {
   message: ChatMessageData;
   onSaveAsKnowledge?: (content: string) => void;
   onFork?: (messageId: string) => void;
+  showThinking?: boolean;
 }
 
 // Simple markdown rendering — parse code blocks, bold, italic, headers, lists
@@ -71,14 +72,14 @@ function renderInline(text: string): React.ReactNode {
   });
 }
 
-export const AssistantMessage: React.FC<Props> = ({ message, onSaveAsKnowledge, onFork }) => {
+export const AssistantMessage: React.FC<Props> = ({ message, onSaveAsKnowledge, onFork, showThinking = true }) => {
   const renderedContent = useMemo(() => renderMarkdown(message.content), [message.content]);
 
   return (
     <div className={`chat-message assistant-message ${message.isStreaming ? 'streaming' : ''}`}>
       <div className="message-avatar">Claude</div>
       <div className="message-body">
-        {message.thinking && <ThinkingBlock content={message.thinking} />}
+        {showThinking && message.thinking && <ThinkingBlock content={message.thinking} />}
 
         {message.toolCalls && message.toolCalls.length > 0 && (
           <ToolPanel tools={message.toolCalls} results={message.toolResults} />

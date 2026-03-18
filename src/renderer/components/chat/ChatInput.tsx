@@ -5,9 +5,10 @@ interface Props {
   onStop: () => void;
   isRunning: boolean;
   disabled: boolean;
+  sendShortcut?: 'ctrl+enter' | 'enter';
 }
 
-export const ChatInput: React.FC<Props> = ({ onSend, onStop, isRunning, disabled }) => {
+export const ChatInput: React.FC<Props> = ({ onSend, onStop, isRunning, disabled, sendShortcut = 'ctrl+enter' }) => {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -22,12 +23,14 @@ export const ChatInput: React.FC<Props> = ({ onSend, onStop, isRunning, disabled
   }, [input, onSend, disabled]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // Ctrl+Enter or Cmd+Enter to send
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    if (sendShortcut === 'enter' && e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    } else if (sendShortcut === 'ctrl+enter' && (e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       handleSend();
     }
-  }, [handleSend]);
+  }, [handleSend, sendShortcut]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -45,7 +48,7 @@ export const ChatInput: React.FC<Props> = ({ onSend, onStop, isRunning, disabled
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder={isRunning ? 'Claude is working...' : 'Message Claude... (Ctrl+Enter to send)'}
+        placeholder={isRunning ? 'Claude is working...' : `Message Claude... (${sendShortcut === 'enter' ? 'Enter' : 'Ctrl+Enter'} to send)`}
         disabled={disabled || isRunning}
         rows={1}
         className="chat-textarea"
@@ -60,7 +63,7 @@ export const ChatInput: React.FC<Props> = ({ onSend, onStop, isRunning, disabled
             className="btn send-btn"
             onClick={handleSend}
             disabled={disabled || !input.trim()}
-            title="Send message (Ctrl+Enter)"
+            title={`Send message (${sendShortcut === 'enter' ? 'Enter' : 'Ctrl+Enter'})`}
           >
             Send
           </button>
