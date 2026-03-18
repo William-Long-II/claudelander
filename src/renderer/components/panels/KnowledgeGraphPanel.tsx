@@ -97,6 +97,15 @@ export function KnowledgeGraphPanel({ isOpen, onToggle }: KnowledgeGraphPanelPro
     }
   }, [isOpen, loadNodes]);
 
+  // Auto-refresh knowledge panel every 10 seconds when open
+  useEffect(() => {
+    if (!isOpen) return;
+    const interval = setInterval(() => {
+      loadNodes();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [isOpen, loadNodes]);
+
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value;
     setSearchQuery(query);
