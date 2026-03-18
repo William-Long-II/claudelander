@@ -11,6 +11,7 @@ import { KnowledgeGraphPanel } from './components/panels/KnowledgeGraphPanel';
 import { CodeSearchModal } from './components/CodeSearchModal';
 import { SearchModal } from './components/SearchModal';
 import { CommandPalette } from './components/CommandPalette';
+import { TemplateModal } from './components/TemplateModal';
 import { useSessions } from './store/sessions';
 import { useGroups } from './store/groups';
 import { useSharing } from './store/sharing';
@@ -107,6 +108,9 @@ const App: React.FC = () => {
 
   // Command palette state
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  // Template modal state
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
 
   // Group config popover state
   const [configGroupId, setConfigGroupId] = useState<string | null>(null);
@@ -927,6 +931,14 @@ const App: React.FC = () => {
             </button>
             <button
               className="icon-button"
+              onClick={() => setTemplateModalOpen(true)}
+              title="Session Templates"
+              aria-label="Session Templates"
+            >
+              T
+            </button>
+            <button
+              className="icon-button"
               onClick={() => setSettingsOpen(true)}
               title="Settings"
               aria-label="Settings"
@@ -1624,6 +1636,16 @@ const App: React.FC = () => {
           setActiveSessionId(sessionId);
         }}
         sessions={sessions}
+      />
+
+      {/* Template Modal */}
+      <TemplateModal
+        isOpen={templateModalOpen}
+        onClose={() => setTemplateModalOpen(false)}
+        onStartFromTemplate={(template) => {
+          setTemplateModalOpen(false);
+          handleCommandPaletteSelectTemplate(template);
+        }}
       />
 
       {/* Command Palette */}

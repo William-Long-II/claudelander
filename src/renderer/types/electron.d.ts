@@ -188,6 +188,7 @@ export interface ElectronAPI {
   branchesDelete: (id: string) => Promise<boolean>;
 
   // Knowledge Graph
+  knowledgeCreate: (content: string, options?: { tier?: number; domains?: string[]; tags?: string[]; scopeSessionId?: string; scopeGroupId?: string }) => Promise<KnowledgeNode>;
   knowledgeSearch: (query: string, limit?: number) => Promise<KnowledgeNode[]>;
   knowledgeGetByTier: (tier: number, limit?: number) => Promise<KnowledgeNode[]>;
   knowledgeGetByDomain: (domain: string, limit?: number) => Promise<KnowledgeNode[]>;

@@ -297,6 +297,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('branches:delete', id),
 
   // Knowledge Graph
+  knowledgeCreate: (content: string, options?: { tier?: number; domains?: string[]; tags?: string[]; scopeSessionId?: string; scopeGroupId?: string }) =>
+    ipcRenderer.invoke('knowledge:create', content, options),
   knowledgeSearch: (query: string, limit?: number) =>
     ipcRenderer.invoke('knowledge:search', query, limit),
   knowledgeGetByTier: (tier: number, limit?: number) =>

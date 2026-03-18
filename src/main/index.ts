@@ -649,6 +649,19 @@ safeHandle('branches:delete', (id: string) => {
 });
 
 // Knowledge Graph IPC Handlers
+safeHandle('knowledge:create', (content: string, options?: { tier?: number; domains?: string[]; tags?: string[]; scopeSessionId?: string; scopeGroupId?: string }) => {
+  return knowledgeRepo.createKnowledgeNode({
+    id: randomUUID(),
+    tier: (options?.tier ?? 1) as KnowledgeTier,
+    content,
+    source: 'user-created',
+    domains: options?.domains,
+    tags: options?.tags,
+    scopeSessionId: options?.scopeSessionId,
+    scopeGroupId: options?.scopeGroupId,
+  });
+});
+
 safeHandle('knowledge:search', (query: string, limit?: number) => {
   return knowledgeRepo.searchKnowledgeNodes(query, limit);
 });

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { ChatMessage, ChatMessageData } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { SessionSettingsBar } from './SessionSettingsBar';
@@ -29,6 +29,12 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, currentStreamingMessage?.content]);
+
+  const handleSaveAsKnowledge = useCallback((content: string) => {
+    window.electronAPI.knowledgeCreate(content, {
+      scopeSessionId: sessionId || undefined,
+    });
+  }, [sessionId]);
 
   const allMessages = [...messages];
   if (currentStreamingMessage) {
@@ -72,7 +78,7 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
         )}
 
         {allMessages.map((msg) => (
-          <ChatMessage key={msg.id} message={msg} />
+          <ChatMessage key={msg.id} message={msg} onSaveAsKnowledge={handleSaveAsKnowledge} />
         ))}
 
         <div ref={messagesEndRef} />

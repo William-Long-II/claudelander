@@ -9,7 +9,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  type SettingsTab = 'general' | 'appearance' | 'terminal' | 'sound' | 'integrations' | 'mobile' | 'claude';
+  type SettingsTab = 'general' | 'appearance' | 'sound' | 'integrations' | 'mobile' | 'claude';
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
 
   // Mobile API state
@@ -495,12 +495,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               Appearance
             </button>
             <button
-              className={`settings-nav-item ${activeTab === 'terminal' ? 'active' : ''}`}
-              onClick={() => setActiveTab('terminal')}
-            >
-              Terminal
-            </button>
-            <button
               className={`settings-nav-item ${activeTab === 'mobile' ? 'active' : ''}`}
               onClick={() => setActiveTab('mobile')}
             >
@@ -539,34 +533,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                 <div className="settings-group">
                   <h4>Sessions</h4>
-                  <div className="settings-row">
-                    <label htmlFor="auto-launch-claude">Auto-launch Claude:</label>
-                    <input
-                      id="auto-launch-claude"
-                      type="checkbox"
-                      checked={autoLaunchClaude}
-                      onChange={e => handleAutoLaunchClaudeChange(e.target.checked)}
-                    />
-                    <span className="settings-hint">Automatically start Claude when creating new sessions</span>
-                  </div>
-
-                  <div className="settings-row">
-                    <label htmlFor="custom-shell-path">Custom Shell Path:</label>
-                    <input
-                      id="custom-shell-path"
-                      type="text"
-                      className="settings-text-input"
-                      value={customShellPath}
-                      onChange={e => handleCustomShellPathChange(e.target.value)}
-                      placeholder="Auto-detect"
-                    />
-                    <span className="settings-hint">
-                      {window.electronAPI.platform === 'win32'
-                        ? 'e.g., C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
-                        : 'e.g., /bin/bash, /bin/zsh'}
-                    </span>
-                  </div>
-
                   <div className="settings-row">
                     <label htmlFor="preferred-editor">Preferred Editor:</label>
                     <select
@@ -631,40 +597,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       onChange={e => handleSplashDurationChange(parseFloat(e.target.value))}
                     />
                     <span className="range-value">{splashDuration}s</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'terminal' && (
-              <div className="settings-section">
-                <h3>Terminal</h3>
-
-                <div className="settings-group">
-                  <h4>Display</h4>
-                  <div className="settings-row">
-                    <label htmlFor="font-size">Font Size:</label>
-                    <input
-                      type="range"
-                      id="font-size"
-                      min="10"
-                      max="24"
-                      step="1"
-                      value={fontSize}
-                      onChange={e => handleFontSizeChange(parseInt(e.target.value, 10))}
-                    />
-                    <span className="range-value">{fontSize}px</span>
-                  </div>
-
-                  <div className="settings-row">
-                    <label htmlFor="webgl-renderer">Enable WebGL Rendering:</label>
-                    <input
-                      id="webgl-renderer"
-                      type="checkbox"
-                      checked={webglRenderer}
-                      onChange={e => handleWebglRendererChange(e.target.checked)}
-                    />
-                    <span className="settings-hint">Use GPU acceleration for terminal (recommended)</span>
                   </div>
                 </div>
               </div>
