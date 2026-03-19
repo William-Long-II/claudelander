@@ -630,6 +630,16 @@ ipcMain.handle('db:sessions:delete', async (_, id: string) => {
   }
   // Kill any running Claude session
   claudeSessionManager.removeSession(id);
+  // Delete T1 knowledge nodes scoped to this session (T2/T3 are kept — they've been promoted)
+  try {
+    const db = getDatabase();
+    const result = db.prepare('DELETE FROM knowledge_nodes WHERE scope_session_id = ? AND tier = 1').run(id);
+    if (result.changes > 0) {
+      log.info(`[Knowledge] Deleted ${result.changes} T1 nodes for deleted session ${id}`);
+    }
+  } catch (error) {
+    log.error('[Knowledge] Failed to clean up session knowledge:', error);
+  }
   sessionsRepo.deleteSession(id);
   getApiServer().broadcastSessionsUpdated();
 });
