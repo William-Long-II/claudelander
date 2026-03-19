@@ -181,8 +181,11 @@ export class VectorSearchManager extends EventEmitter {
   async startIndexing(directoryPath: string): Promise<void> {
     const index = await this.getOrCreateIndex(directoryPath);
 
-    // Cancel any existing indexing for this directory
-    this.cancelIndexing(index.id);
+    // Skip if already actively indexing this directory
+    if (this.workers.has(index.id)) {
+      console.log(`[VectorSearch] Already indexing ${directoryPath}, skipping duplicate request`);
+      return;
+    }
 
     // Clear the cancelled flag since we're starting fresh
     this.cancelledIndexes.delete(index.id);
