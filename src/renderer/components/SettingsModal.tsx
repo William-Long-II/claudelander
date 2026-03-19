@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ApiServerStatus, PairedDevice, PairingCode, RelayConnectionStatus } from '../../shared/types';
 import { SessionSettingsBar } from './chat/SessionSettingsBar';
 import { ClaudeConfig } from '../../shared/types';
+import { notifyChatPreferencesChanged } from '../hooks/useChatPreferences';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -410,16 +411,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const handleChatFontSizeChange = useCallback(async (size: number) => {
     setChatFontSize(size);
     await window.electronAPI.setPreference('chatFontSize', size.toString());
+    notifyChatPreferencesChanged();
   }, []);
 
   const handleShowThinkingChange = useCallback(async (enabled: boolean) => {
     setShowThinking(enabled);
     await window.electronAPI.setPreference('showThinking', enabled.toString());
+    notifyChatPreferencesChanged();
   }, []);
 
   const handleSendShortcutChange = useCallback(async (value: string) => {
     setSendShortcut(value);
     await window.electronAPI.setPreference('sendShortcut', value);
+    notifyChatPreferencesChanged();
   }, []);
 
   // Terminal setting handlers
