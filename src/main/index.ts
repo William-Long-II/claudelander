@@ -338,7 +338,7 @@ function createWindow(): void {
     log.error('[Main] Failed to auto-start API server:', err);
   });
 
-  // Run knowledge promotion engine periodically
+  // Run knowledge promotion engine periodically (every 30 min)
   const runPromotionCycle = () => {
     try {
       const candidates = findPromotionCandidates();
@@ -369,19 +369,30 @@ function createWindow(): void {
       if (candidates.length > 0) {
         log.info(`[Knowledge] Promoted ${candidates.length} knowledge nodes`);
       }
-
-      const decayed = applyDecayPass();
-      if (decayed > 0) {
-        log.info(`[Knowledge] Applied confidence decay to ${decayed} nodes`);
-      }
     } catch (error) {
       log.error('[Knowledge] Promotion cycle error:', error);
     }
   };
 
-  // Run on startup (delayed to not block launch), then every 30 minutes
+  // Run confidence decay separately — once per day, not every 30 min
+  // applyDecayPass applies 5% flat to nodes older than 7 days
+  const runDecayCycle = () => {
+    try {
+      const decayed = applyDecayPass();
+      if (decayed > 0) {
+        log.info(`[Knowledge] Applied confidence decay to ${decayed} nodes`);
+      }
+    } catch (error) {
+      log.error('[Knowledge] Decay cycle error:', error);
+    }
+  };
+
+  // Promotion: startup + every 30 minutes
   setTimeout(runPromotionCycle, 10000);
-  const promotionInterval = setInterval(runPromotionCycle, 30 * 60 * 1000);
+  setInterval(runPromotionCycle, 30 * 60 * 1000);
+  // Decay: startup + once per day (24 hours)
+  setTimeout(runDecayCycle, 15000);
+  setInterval(runDecayCycle, 24 * 60 * 60 * 1000);
 
   // Vector search event forwarding
   const vsManager = getVectorSearchManager();

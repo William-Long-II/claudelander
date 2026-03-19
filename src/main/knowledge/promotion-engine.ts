@@ -124,5 +124,6 @@ function findCommonKeywords(nodes: KnowledgeNode[]): string[] {
  * Should be called periodically (e.g., on app startup or every N sessions).
  */
 export function applyDecayPass(): number {
-  return applyConfidenceDecay(0.05, 7); // 5% per week
+  // ~0.7% per day ≈ 5% per week, applied to nodes not reinforced in 7+ days
+  return applyConfidenceDecay(0.007, 7);
 }
