@@ -63,18 +63,15 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
   const handleFork = useCallback(async (messageId: string) => {
     if (!sessionId) return;
     try {
+      const branchId = crypto.randomUUID();
       await window.electronAPI.branchesCreate({
-        id: crypto.randomUUID(),
+        id: branchId,
         sessionId,
         forkMessageId: messageId,
         name: `Branch from ${new Date().toLocaleTimeString()}`,
       });
-      // Brief visual feedback
-      const el = document.getElementById(`msg-${messageId}`);
-      if (el) {
-        el.classList.add('highlight-flash');
-        setTimeout(() => el.classList.remove('highlight-flash'), 1500);
-      }
+      // Switch to the new branch
+      switchBranch(branchId);
     } catch (err) {
       console.error('Failed to create branch:', err);
     }

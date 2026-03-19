@@ -30,7 +30,7 @@ export const BranchSelector: React.FC<BranchSelectorProps> = ({
 
   useEffect(() => {
     loadBranches();
-  }, [loadBranches]);
+  }, [loadBranches, currentBranchId]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
