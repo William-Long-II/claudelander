@@ -54,6 +54,7 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
   }, [scrollToMessageId, onScrollComplete]);
 
   const handleSaveAsKnowledge = useCallback((content: string) => {
+    // T1 fact scoped to session — promotion to T2/T3 widens visibility
     window.electronAPI.knowledgeCreate(content, {
       scopeSessionId: sessionId || undefined,
     });

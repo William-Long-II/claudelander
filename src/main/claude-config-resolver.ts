@@ -90,6 +90,7 @@ export function buildKnowledgeContext(sessionId: string, groupId?: string): stri
     scopeSessionId: sessionId,
     limit: 20,
   });
+  log.info(`[Knowledge] buildKnowledgeContext: session=${sessionId}, group=${groupId}, found ${nodes.length} nodes`);
   if (nodes.length === 0) return '';
 
   // Reinforce nodes that are being actively used
