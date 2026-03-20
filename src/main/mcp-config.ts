@@ -17,9 +17,14 @@ interface McpServerConfig {
   env?: Record<string, string>;
 }
 
+interface HookEntry {
+  type: string;
+  command: string;
+}
+
 interface HookConfig {
   matcher: string;
-  hooks: string[];
+  hooks: (string | HookEntry)[];
 }
 
 interface ClaudeMcpConfig {
@@ -195,10 +200,11 @@ function areHooksConfigured(settings: ClaudeSettingsConfig, hookScriptPath: stri
   if (!hooks) return false;
 
   // Check if any hook contains our identifier
+  const hookStr = (h: string | HookEntry): string => typeof h === 'string' ? h : h.command || '';
   const checkHookType = (hookConfigs: HookConfig[] | undefined): boolean => {
     if (!hookConfigs) return false;
     return hookConfigs.some(config =>
-      config.hooks.some(h => h.includes(HOOK_IDENTIFIER) || h.includes(hookScriptPath))
+      config.hooks.some(h => hookStr(h).includes(HOOK_IDENTIFIER) || hookStr(h).includes(hookScriptPath))
     );
   };
 
@@ -284,26 +290,30 @@ export function registerHooks(): { success: boolean; action: 'added' | 'updated'
       settings.hooks = {};
     }
 
-    // Build the hook command - needs to work cross-platform
-    const nodeCmd = process.platform === 'win32' ? 'node' : 'node';
+    // Build the hook command - Claude Code expects { type, command } objects
+    const nodeCmd = 'node';
+    const makeHookCmd = (hookType: string): HookEntry => ({
+      type: 'command',
+      command: `cat | ${nodeCmd} -e "require('${hookScriptPath.replace(/\\/g, '/')}')" ${hookType}`,
+    });
 
     // PostToolUse hook for Bash (captures git commits)
     const postToolUseHook: HookConfig = {
       matcher: 'Bash',
-      hooks: [`${nodeCmd} "${hookScriptPath}" PostToolUse`],
+      hooks: [makeHookCmd('PostToolUse')],
     };
 
     // Stop hook (captures session summaries after significant work)
     const stopHook: HookConfig = {
       matcher: '',  // Match all stops
-      hooks: [`${nodeCmd} "${hookScriptPath}" Stop`],
+      hooks: [makeHookCmd('Stop')],
     };
 
     // Remove any existing ClaudeLander hooks first
     const filterOurHooks = (configs: HookConfig[] | undefined): HookConfig[] => {
       if (!configs) return [];
       return configs.filter(config =>
-        !config.hooks.some(h => h.includes(HOOK_IDENTIFIER) || h.includes('claudelander'))
+        !config.hooks.some(h => { const s = typeof h === 'string' ? h : h.command || ''; return s.includes(HOOK_IDENTIFIER) || s.includes('claudelander'); })
       );
     };
 
@@ -368,7 +378,7 @@ export function unregisterHooks(): boolean {
     const filterOurHooks = (configs: HookConfig[] | undefined): HookConfig[] | undefined => {
       if (!configs) return undefined;
       const filtered = configs.filter(config =>
-        !config.hooks.some(h => h.includes(HOOK_IDENTIFIER) || h.includes('claudelander'))
+        !config.hooks.some(h => { const s = typeof h === 'string' ? h : h.command || ''; return s.includes(HOOK_IDENTIFIER) || s.includes('claudelander'); })
       );
       if (filtered.length !== configs.length) modified = true;
       return filtered.length > 0 ? filtered : undefined;
