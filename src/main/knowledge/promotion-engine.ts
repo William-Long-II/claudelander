@@ -40,7 +40,7 @@ export function findPromotionCandidates(): PromotionCandidate[] {
     if (nodes.length < 3) continue;
 
     // Simple clustering: find groups of nodes with high word overlap
-    const clusters = clusterByWordOverlap(nodes, 0.3);
+    const clusters = clusterByWordOverlap(nodes, 0.2);
 
     for (const cluster of clusters) {
       if (cluster.length < 3) continue;

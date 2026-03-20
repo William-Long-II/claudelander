@@ -304,6 +304,10 @@ function createWindow(): void {
         splashWindow.close();
       }
       mainWindow?.show();
+      // Open DevTools in dev mode to catch renderer errors
+      if (!app.isPackaged) {
+        mainWindow?.webContents.openDevTools({ mode: 'detach' });
+      }
     }, SPLASH_DURATION);
   });
 
@@ -342,7 +346,9 @@ function createWindow(): void {
   // Run knowledge promotion engine periodically (every 30 min)
   const runPromotionCycle = () => {
     try {
+      log.info('[Knowledge] Running promotion cycle...');
       const candidates = findPromotionCandidates();
+      log.info(`[Knowledge] Found ${candidates.length} promotion candidates`);
       for (const candidate of candidates) {
         // Dedup: check if similar promoted content already exists at target tier
         const existing = knowledgeRepo.searchKnowledgeNodes(candidate.proposedContent.substring(0, 50), 5);
