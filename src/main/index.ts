@@ -349,10 +349,12 @@ function createWindow(): void {
       log.info('[Knowledge] Running promotion cycle...');
       const candidates = findPromotionCandidates();
       log.info(`[Knowledge] Found ${candidates.length} promotion candidates`);
+      // Load existing T2 nodes once for dedup checks
+      const existingT2 = knowledgeRepo.getKnowledgeNodesByTier(2 as KnowledgeTier, 200);
       for (const candidate of candidates) {
-        // Dedup: check if similar promoted content already exists at target tier
-        const existing = knowledgeRepo.searchKnowledgeNodes(candidate.proposedContent.substring(0, 50), 5);
-        const isDuplicate = existing.some(n => n.tier === candidate.toTier && n.content === candidate.proposedContent);
+        // Dedup: compare first 100 chars of content against existing T2 nodes
+        const prefix = candidate.proposedContent.substring(0, 100);
+        const isDuplicate = existingT2.some(n => n.content.substring(0, 100) === prefix);
         if (isDuplicate) continue;
 
         const id = randomUUID();
