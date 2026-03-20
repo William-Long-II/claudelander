@@ -119,7 +119,7 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
         disabled={isRunning}
       />
 
-      <div className="chat-messages" style={{ fontSize: `${chatPrefs.chatFontSize}px` }}>
+      <div className="chat-messages" style={{ '--chat-font-size': `${chatPrefs.chatFontSize}px` } as React.CSSProperties}>
         {allMessages.length === 0 && (
           <div className="chat-welcome">
             <p>Start a conversation with Claude. Your messages are saved and searchable.</p>

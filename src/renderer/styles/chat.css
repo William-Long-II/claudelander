@@ -147,7 +147,7 @@
 }
 
 .message-content {
-  font-size: 0.85rem;
+  font-size: var(--chat-font-size, 14px);
   line-height: 1.5;
   color: var(--text-primary, #e0e0f0);
 }
@@ -483,7 +483,7 @@
   border-radius: 8px;
   padding: 8px 12px;
   color: var(--text-primary, #e0e0f0);
-  font-size: 0.85rem;
+  font-size: var(--chat-font-size, 14px);
   font-family: inherit;
   line-height: 1.4;
   min-height: 36px;
