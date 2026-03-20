@@ -28,6 +28,7 @@ import { openInEditor, detectAvailableEditors, getEditorOptions, EditorType } fr
 import { claudeSessionManager } from './claude-session-manager';
 import { resolveClaudeConfig, buildKnowledgeContext } from './claude-config-resolver';
 import { extractKnowledgeCandidates } from './knowledge/extractor';
+import { detectDomains } from './knowledge/domain-tagger';
 import { findPromotionCandidates, applyDecayPass } from './knowledge/promotion-engine';
 
 // Global error handlers to catch uncaught exceptions and prevent silent crashes
@@ -730,13 +731,15 @@ safeHandle('branches:delete', (id: string) => {
 
 // Knowledge Graph IPC Handlers
 safeHandle('knowledge:create', (content: string, options?: { tier?: number; domains?: string[]; tags?: string[]; scopeSessionId?: string; scopeGroupId?: string }) => {
+  // Auto-detect domains from content if not explicitly provided
+  const domains = options?.domains ?? detectDomains(content);
   return knowledgeRepo.createKnowledgeNode({
     id: randomUUID(),
     tier: (options?.tier ?? 1) as KnowledgeTier,
     content,
     source: 'user-created',
-    domains: options?.domains,
-    tags: options?.tags,
+    domains,
+    tags: options?.tags ?? ['user-saved'],
     scopeSessionId: options?.scopeSessionId,
     scopeGroupId: options?.scopeGroupId,
   });
