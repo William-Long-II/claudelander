@@ -351,10 +351,11 @@ function createWindow(): void {
       log.info(`[Knowledge] Found ${candidates.length} promotion candidates`);
       // Load existing T2 nodes once for dedup checks
       const existingT2 = knowledgeRepo.getKnowledgeNodesByTier(2 as KnowledgeTier, 200);
+      const stripSuffix = (s: string) => s.replace(/\s*\(recurring pattern from.*$/, '').substring(0, 80);
       for (const candidate of candidates) {
-        // Dedup: compare first 100 chars of content against existing T2 nodes
-        const prefix = candidate.proposedContent.substring(0, 100);
-        const isDuplicate = existingT2.some(n => n.content.substring(0, 100) === prefix);
+        // Dedup: compare content core (without suffix) against existing T2 nodes
+        const candidateCore = stripSuffix(candidate.proposedContent);
+        const isDuplicate = existingT2.some(n => stripSuffix(n.content) === candidateCore);
         if (isDuplicate) continue;
 
         const id = randomUUID();
