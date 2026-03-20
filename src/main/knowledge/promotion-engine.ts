@@ -35,6 +35,9 @@ export function findPromotionCandidates(): PromotionCandidate[] {
     }
   }
 
+  // Track which node clusters we've already promoted (by sorted evidence IDs)
+  const promotedClusters = new Set<string>();
+
   // For each domain with 3+ facts, check for clusters
   for (const [domain, nodes] of domainGroups) {
     if (nodes.length < 3) continue;
@@ -45,19 +48,29 @@ export function findPromotionCandidates(): PromotionCandidate[] {
     for (const cluster of clusters) {
       if (cluster.length < 3) continue;
 
-      // Use the highest-confidence node as the representative content,
-      // with a note about how many observations reinforced it
+      // Dedup: same set of nodes may appear across multiple domains
+      const clusterKey = cluster.map(n => n.id).sort().join(',');
+      if (promotedClusters.has(clusterKey)) continue;
+      promotedClusters.add(clusterKey);
+
+      // Collect all domains shared by this cluster
+      const clusterDomains = new Set<string>();
+      for (const node of cluster) {
+        for (const d of node.domains) clusterDomains.add(d);
+      }
+
+      // Use the highest-confidence node as the representative content
       const sorted = [...cluster].sort((a, b) => b.confidence - a.confidence);
       const representative = sorted[0];
-      // Trim to first 2 sentences for a concise pattern
       const sentences = representative.content.split(/(?<=[.!?])\s+/).slice(0, 2).join(' ');
-      const proposedContent = `${sentences} (recurring pattern from ${cluster.length} observations in ${domain})`;
+      const domainList = Array.from(clusterDomains).slice(0, 3).join(', ');
+      const proposedContent = `${sentences} (recurring pattern from ${cluster.length} observations in ${domainList})`;
 
       candidates.push({
         fromTier: 1,
         toTier: 2,
         proposedContent,
-        domains: [domain],
+        domains: Array.from(clusterDomains),
         evidence: cluster.map(n => n.id),
         trigger: 'repetition',
       });
