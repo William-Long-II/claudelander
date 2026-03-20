@@ -45,9 +45,13 @@ export function findPromotionCandidates(): PromotionCandidate[] {
     for (const cluster of clusters) {
       if (cluster.length < 3) continue;
 
-      // Generate a pattern summary from the cluster
-      const commonWords = findCommonKeywords(cluster);
-      const proposedContent = `Pattern: ${commonWords.join(', ')} (from ${cluster.length} related observations in ${domain})`;
+      // Use the highest-confidence node as the representative content,
+      // with a note about how many observations reinforced it
+      const sorted = [...cluster].sort((a, b) => b.confidence - a.confidence);
+      const representative = sorted[0];
+      // Trim to first 2 sentences for a concise pattern
+      const sentences = representative.content.split(/(?<=[.!?])\s+/).slice(0, 2).join(' ');
+      const proposedContent = `${sentences} (recurring pattern from ${cluster.length} observations in ${domain})`;
 
       candidates.push({
         fromTier: 1,
