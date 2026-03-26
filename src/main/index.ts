@@ -291,10 +291,6 @@ function createWindow(): void {
         splashWindow.close();
       }
       mainWindow?.show();
-      // Open DevTools in dev mode to catch renderer errors
-      if (!app.isPackaged) {
-        mainWindow?.webContents.openDevTools({ mode: 'detach' });
-      }
     }, SPLASH_DURATION);
   });
 
