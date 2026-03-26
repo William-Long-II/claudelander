@@ -12,6 +12,7 @@ import { CodeSearchModal } from './components/CodeSearchModal';
 import { SearchModal } from './components/SearchModal';
 import { CommandPalette } from './components/CommandPalette';
 import { TemplateModal } from './components/TemplateModal';
+import { SidebarOverflowMenu } from './components/SidebarOverflowMenu';
 import { useSessions } from './store/sessions';
 import { useGroups } from './store/groups';
 import { useSharing } from './store/sharing';
@@ -898,74 +899,63 @@ const App: React.FC = () => {
           onMouseDown={handleResizeStart}
         />
         <div className="sidebar-header">
-          <h2>Groups</h2>
-          <div className="sidebar-header-actions">
-            <button
-              className={`icon-button ${memoryPanelOpen ? 'active' : ''}`}
-              onClick={() => setMemoryPanelOpen(prev => !prev)}
-              title="Toggle Memory Panel"
-              aria-label="Toggle Memory Panel"
-            >
-              *
-            </button>
-            <button
-              className={`icon-button ${knowledgePanelOpen ? 'active' : ''}`}
-              onClick={() => setKnowledgePanelOpen(prev => !prev)}
-              title="Toggle Knowledge Graph"
-              aria-label="Toggle Knowledge Graph"
-            >
-              K
-            </button>
-            <button
-              className="icon-button"
-              onClick={() => setCodeSearchOpen(true)}
-              title="Code Search (Ctrl+Shift+F)"
-              aria-label="Code Search"
-            >
-              🔍
-            </button>
-            <button
-              className="icon-button"
-              onClick={() => setChatSearchOpen(true)}
-              title="Chat Search (Ctrl+Shift+H)"
-              aria-label="Chat Search"
-            >
-              💬
-            </button>
-            <button
-              className="icon-button"
-              onClick={() => setTemplateModalOpen(true)}
-              title="Session Templates"
-              aria-label="Session Templates"
-            >
-              T
-            </button>
-            <button
-              className="icon-button"
-              onClick={() => setSettingsOpen(true)}
-              title="Settings"
-              aria-label="Settings"
-            >
-              ⚙
-            </button>
-            <button
-              className="icon-button"
-              onClick={() => setJoinModalOpen(true)}
-              title={isAuthenticated ? 'Join Shared Session' : 'Sign in to join sessions'}
-              aria-label="Join Shared Session"
-              disabled={!isAuthenticated}
-            >
-              ⇄
-            </button>
-            <button
-              className="icon-button"
-              onClick={handleCreateGroup}
-              title="New Group"
-              aria-label="New Group"
-            >
-              +
-            </button>
+          <div className="sidebar-header-primary">
+            <h2 className="sidebar-title">Groups</h2>
+            <div className="sidebar-header-actions">
+              <button
+                className={`sidebar-icon-btn ${knowledgePanelOpen ? 'active' : ''}`}
+                onClick={() => setKnowledgePanelOpen(prev => !prev)}
+                title="Knowledge Graph"
+                aria-label="Toggle Knowledge Graph"
+                aria-pressed={knowledgePanelOpen}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 1a2.5 2.5 0 0 0-2.5 2.5c0 .87.45 1.63 1.13 2.07L5.18 9.4A2.48 2.48 0 0 0 3.5 9 2.5 2.5 0 1 0 5.74 11.9l1.83-3.66A2.5 2.5 0 0 0 10.5 3.5 2.5 2.5 0 0 0 8 1zM8 5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm-4.5 8a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                </svg>
+              </button>
+              <button
+                className={`sidebar-icon-btn ${memoryPanelOpen ? 'active' : ''}`}
+                onClick={() => setMemoryPanelOpen(prev => !prev)}
+                title="Memory Panel"
+                aria-label="Toggle Memory Panel"
+                aria-pressed={memoryPanelOpen}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M3 1h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm1 2v2h8V3H4zm0 4v2h5V7H4zm0 4v2h8v-2H4z"/>
+                </svg>
+              </button>
+              <button
+                className="sidebar-icon-btn"
+                onClick={handleCreateGroup}
+                title="New Group"
+                aria-label="New Group"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2z"/>
+                </svg>
+              </button>
+              <SidebarOverflowMenu
+                onCodeSearch={() => setCodeSearchOpen(true)}
+                onChatSearch={() => setChatSearchOpen(true)}
+                onTemplates={() => setTemplateModalOpen(true)}
+                onSettings={() => setSettingsOpen(true)}
+                onJoinSession={() => setJoinModalOpen(true)}
+                isAuthenticated={isAuthenticated}
+              />
+            </div>
           </div>
+          <button
+            className="sidebar-search-trigger"
+            onClick={() => setCommandPaletteOpen(true)}
+            title="Search sessions and commands (Ctrl+K)"
+            aria-label="Search sessions and commands"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04z"/>
+            </svg>
+            <span>Search sessions...</span>
+            <kbd>Ctrl K</kbd>
+          </button>
         </div>
 
         {getTopLevelGroups().map(group => (
