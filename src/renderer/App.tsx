@@ -946,15 +946,15 @@ const App: React.FC = () => {
           </div>
           <button
             className="sidebar-search-trigger"
-            onClick={() => setCommandPaletteOpen(true)}
-            title="Search sessions and commands (Ctrl+K)"
-            aria-label="Search sessions and commands"
+            onClick={() => setChatSearchOpen(true)}
+            title="Search chat history (Ctrl+Shift+H)"
+            aria-label="Search chat history"
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
               <path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04z"/>
             </svg>
-            <span>Search sessions...</span>
-            <kbd>Ctrl K</kbd>
+            <span>Search chat history...</span>
+            <kbd>Ctrl+Shift+H</kbd>
           </button>
         </div>
 
