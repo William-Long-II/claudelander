@@ -145,12 +145,12 @@ soundManager.setSessionStateLookup((sessionId: string) => {
 
 const SPLASH_DURATION = 2500; // 2.5 seconds
 
-function updateTrayWithWaitingSessions(): void {
-  const waitingSessions = Array.from(sessionStates.entries())
-    .filter(([_, info]) => info.state === 'waiting')
+function updateTrayWithActiveSessions(): void {
+  const activeSessions = Array.from(sessionStates.entries())
+    .filter(([_, info]) => info.state === 'working')
     .map(([id, info]) => ({ id, name: info.name }));
 
-  trayManager.updateWaitingSessions(waitingSessions);
+  trayManager.updateWaitingSessions(activeSessions);
 }
 
 function handleStateChange(sessionId: string, state: string, sessionName?: string): void {
@@ -177,23 +177,12 @@ function handleStateChange(sessionId: string, state: string, sessionName?: strin
   // Get previous state for sound manager
   const previousState = sessionStates.get(sessionId)?.state;
 
-  if (state === 'waiting') {
-    sessionStates.set(sessionId, { name, state });
-
-    // Show notification
-    notificationManager.showWaitingNotification({
-      sessionId,
-      sessionName: name,
-      message: 'Waiting for input',
-    });
+  // Update state but keep name
+  const existing = sessionStates.get(sessionId);
+  if (existing) {
+    sessionStates.set(sessionId, { ...existing, state });
   } else {
-    // Update state but keep name
-    const existing = sessionStates.get(sessionId);
-    if (existing) {
-      sessionStates.set(sessionId, { ...existing, state });
-    } else {
-      sessionStates.set(sessionId, { name, state });
-    }
+    sessionStates.set(sessionId, { name, state });
   }
 
   // Play sound notification
@@ -209,16 +198,14 @@ function handleStateChange(sessionId: string, state: string, sessionName?: strin
     }
   }
 
-  if (state === 'waiting') {
-    notificationManager.sendTeamsNotification(sessionId, name, projectPath, 'waiting');
-  } else if (state === 'error') {
+  if (state === 'error') {
     notificationManager.sendTeamsNotification(sessionId, name, projectPath, 'error');
   } else if (state === 'idle' && previousState === 'working') {
     notificationManager.sendTeamsNotification(sessionId, name, projectPath, 'complete');
   }
 
   // Update tray
-  updateTrayWithWaitingSessions();
+  updateTrayWithActiveSessions();
 }
 
 function createSplashWindow(): void {
@@ -427,9 +414,8 @@ function createWindow(): void {
   claudeSessionManager.on('state-change', ({ sessionId, status }: { sessionId: string; status: any }) => {
     mainWindow?.webContents.send('claude:stateChange', sessionId, status);
     // Map 3.0 SessionState3 to legacy state for DB and notifications
-    const legacyState = status.state === 'idle' || status.state === 'stopped' ? 'idle'
+    const legacyState = status.state === 'idle' ? 'idle'
       : status.state === 'error' ? 'error'
-      : status.state === 'waiting' ? 'waiting'
       : 'working';
     try {
       sessionsRepo.updateSession(sessionId, {

@@ -481,7 +481,7 @@ export interface ConversationBranch {
 // Session State Updates (3.0)
 // =============================================================================
 
-export type SessionState3 = 'idle' | 'thinking' | 'tool_executing' | 'streaming' | 'waiting' | 'error' | 'stopped';
+export type SessionState3 = 'idle' | 'thinking' | 'tool_executing' | 'streaming' | 'error';
 
 export interface SessionStatus {
   state: SessionState3;

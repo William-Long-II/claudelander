@@ -98,5 +98,5 @@ export function clearAllSessions(): void {
 
 export function markAllSessionsStopped(): void {
   const db = getDatabase();
-  db.prepare("UPDATE sessions SET state = 'stopped'").run();
+  db.prepare("UPDATE sessions SET state = 'idle'").run();
 }
