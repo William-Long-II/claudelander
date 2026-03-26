@@ -336,13 +336,16 @@ function createWindow(): void {
       log.info('[Knowledge] Running promotion cycle...');
       const candidates = findPromotionCandidates();
       log.info(`[Knowledge] Found ${candidates.length} promotion candidates`);
-      // Load existing T2 nodes once for dedup checks
-      const existingT2 = knowledgeRepo.getKnowledgeNodesByTier(2 as KnowledgeTier, 200);
-      const stripSuffix = (s: string) => s.replace(/\s*\(recurring pattern from.*$/, '').substring(0, 80);
+      // Load existing promotion records for evidence-based dedup
+      const db = getDatabase();
+      const existingEvidenceSets = (db.prepare(
+        'SELECT evidence FROM knowledge_promotions'
+      ).all() as { evidence: string }[]).map(r => r.evidence);
+
       for (const candidate of candidates) {
-        // Dedup: compare content core (without suffix) against existing T2 nodes
-        const candidateCore = stripSuffix(candidate.proposedContent);
-        const isDuplicate = existingT2.some(n => stripSuffix(n.content) === candidateCore);
+        // Dedup: skip if the same set of T1 nodes was already promoted
+        const evidenceKey = JSON.stringify(candidate.evidence.sort());
+        const isDuplicate = existingEvidenceSets.some(e => e === evidenceKey);
         if (isDuplicate) continue;
 
         const id = randomUUID();
