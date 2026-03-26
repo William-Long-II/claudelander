@@ -336,17 +336,15 @@ function createWindow(): void {
       log.info('[Knowledge] Running promotion cycle...');
       const candidates = findPromotionCandidates();
       log.info(`[Knowledge] Found ${candidates.length} promotion candidates`);
-      // Load existing promotion records for evidence-based dedup
-      const db = getDatabase();
-      const existingEvidenceSets = (db.prepare(
-        'SELECT evidence FROM knowledge_promotions'
-      ).all() as { evidence: string }[]).map(r => r.evidence);
+      // Dedup by evidence key stored in T2 node tags
+      const existingT2 = knowledgeRepo.getKnowledgeNodesByTier(2 as KnowledgeTier, 200);
+      const existingEvidenceKeys = new Set(
+        existingT2.flatMap(n => (n.tags || []).filter(t => t.startsWith('evidence:')))
+      );
 
       for (const candidate of candidates) {
-        // Dedup: skip if the same set of T1 nodes was already promoted
-        const evidenceKey = JSON.stringify(candidate.evidence.sort());
-        const isDuplicate = existingEvidenceSets.some(e => e === evidenceKey);
-        if (isDuplicate) continue;
+        const evidenceKey = `evidence:${candidate.evidence.sort().join(',')}`;
+        if (existingEvidenceKeys.has(evidenceKey)) continue;
 
         const id = randomUUID();
         knowledgeRepo.createKnowledgeNode({
@@ -355,7 +353,7 @@ function createWindow(): void {
           content: candidate.proposedContent,
           source: 'promoted',
           domains: candidate.domains,
-          tags: ['auto-promoted'],
+          tags: ['auto-promoted', evidenceKey],
         });
         knowledgeRepo.logPromotion({
           id: randomUUID(),
