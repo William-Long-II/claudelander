@@ -336,6 +336,7 @@ function createWindow(): void {
       log.info('[Knowledge] Running promotion cycle...');
       const candidates = findPromotionCandidates();
       log.info(`[Knowledge] Found ${candidates.length} promotion candidates`);
+      let promoted = 0;
       // Dedup by evidence key stored in T2 node tags
       const existingT2 = knowledgeRepo.getKnowledgeNodesByTier(2 as KnowledgeTier, 200);
       const existingEvidenceKeys = new Set(
@@ -363,9 +364,10 @@ function createWindow(): void {
           trigger: candidate.trigger,
           evidence: candidate.evidence,
         });
+        promoted++;
       }
-      if (candidates.length > 0) {
-        log.info(`[Knowledge] Promoted ${candidates.length} knowledge nodes`);
+      if (promoted > 0) {
+        log.info(`[Knowledge] Promoted ${promoted} knowledge nodes (${candidates.length - promoted} skipped as duplicates)`);
       }
     } catch (error) {
       log.error('[Knowledge] Promotion cycle error:', error);
