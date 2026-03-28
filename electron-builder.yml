@@ -15,7 +15,6 @@ asarUnpack:
   - dist/mcp-server/**/*
   - dist/hooks/**/*
   - dist/main/vector-search/**/*
-  - node_modules/node-pty/**/*
   - node_modules/better-sqlite3/**/*
   - node_modules/sodium-native/**/*
   - node_modules/tree-sitter/**/*
@@ -56,9 +55,6 @@ mac:
       arch:
         - x64
         - arm64
-
-# Copy conpty.dll for Windows PTY support (runs after packing)
-afterPack: scripts/copy-conpty.js
 
 # Notarization (runs after signing)
 afterSign: scripts/notarize.js
@@ -104,5 +100,5 @@ linux:
 # Disable electron-builder's native module rebuild - it tries to rebuild ALL
 # native modules including tree-sitter which is incompatible with Electron's V8.
 # The postinstall script handles rebuilding only compatible modules
-# (better-sqlite3, sodium-native, sqlite-vec, node-pty) via electron-rebuild.
+# (better-sqlite3, sodium-native, sqlite-vec) via electron-rebuild.
 npmRebuild: false

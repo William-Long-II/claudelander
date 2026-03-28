@@ -1,7 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
-import Terminal from './components/Terminal';
-import TerminalHeader from './components/TerminalHeader';
-import RemoteTerminal from './components/RemoteTerminal';
+import { ChatContainer } from './components/chat/ChatContainer';
 import ContextMenu, { MenuItem } from './components/ContextMenu';
 import { ShareModal } from './components/ShareModal';
 import { JoinSessionModal } from './components/JoinSessionModal';
@@ -9,13 +7,21 @@ import { NamePromptModal } from './components/NamePromptModal';
 import { SettingsModal } from './components/SettingsModal';
 import { NewItemChoice } from './components/NewItemChoice';
 import { MemoryPanel } from './components/panels/MemoryPanel';
+import { KnowledgeGraphPanel } from './components/panels/KnowledgeGraphPanel';
 import { CodeSearchModal } from './components/CodeSearchModal';
+import { SearchModal } from './components/SearchModal';
+import { CommandPalette } from './components/CommandPalette';
+import { TemplateModal } from './components/TemplateModal';
+import { SidebarOverflowMenu } from './components/SidebarOverflowMenu';
 import { useSessions } from './store/sessions';
 import { useGroups } from './store/groups';
 import { useSharing } from './store/sharing';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { SessionTemplate, SkillEntry } from '../shared/types';
+import { SessionSettingsBar } from './components/chat/SessionSettingsBar';
 import './styles/global.css';
 import './styles/context-menu.css';
+import './styles/chat.css';
 
 interface RemoteSession {
   code: string;
@@ -92,8 +98,26 @@ const App: React.FC = () => {
   // Memory panel state
   const [memoryPanelOpen, setMemoryPanelOpen] = useState(false);
 
+  // Knowledge panel state
+  const [knowledgePanelOpen, setKnowledgePanelOpen] = useState(false);
+
   // Code search modal state
   const [codeSearchOpen, setCodeSearchOpen] = useState(false);
+
+  // Chat search modal state
+  const [chatSearchOpen, setChatSearchOpen] = useState(false);
+
+  // Scroll-to-message state (for search navigation)
+  const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(null);
+
+  // Command palette state
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  // Template modal state
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+
+  // Group config popover state
+  const [configGroupId, setConfigGroupId] = useState<string | null>(null);
 
   // Destructive action confirmation state
   const [confirmAction, setConfirmAction] = useState<{
@@ -113,6 +137,7 @@ const App: React.FC = () => {
     setActiveSessionId,
     createSession,
     updateSession,
+    updateSessionState,
     removeSession,
     getSessionsByGroup,
     getStateCounts,
@@ -126,6 +151,28 @@ const App: React.FC = () => {
   // Get the active session's group ID for memory panel
   const activeSession = sessions.find(s => s.id === activeSessionId);
   const activeGroupId = activeSession?.groupId || null;
+
+  // Sync sidebar session states with Claude session state changes
+  useEffect(() => {
+    const unsubState = window.electronAPI.onClaudeStateChange((sid: string, status: any) => {
+      // Map SessionState3 to legacy SessionState for the sidebar
+      const state = status.state;
+      const legacyState = state === 'idle' || state === 'stopped' ? 'idle'
+        : state === 'error' ? 'error'
+        : state === 'waiting' ? 'waiting'
+        : 'working';
+      updateSessionState(sid, legacyState as any);
+    });
+
+    const unsubEnded = window.electronAPI.onClaudeEnded((sid: string) => {
+      updateSessionState(sid, 'idle');
+    });
+
+    return () => {
+      unsubState();
+      unsubEnded();
+    };
+  }, [updateSessionState]);
 
   // Dismiss color picker on Escape or click-outside
   useEffect(() => {
@@ -721,6 +768,39 @@ const App: React.FC = () => {
     setCodeSearchOpen(true);
   }, []);
 
+  const handleChatSearch = useCallback(() => {
+    setChatSearchOpen(true);
+  }, []);
+
+  const handleCommandPalette = useCallback(() => {
+    setCommandPaletteOpen(prev => !prev);
+  }, []);
+
+  const handleCommandPaletteSelectSession = useCallback((sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      setActiveSessionId(sessionId);
+    }
+  }, [sessions, setActiveSessionId]);
+
+  const handleCommandPaletteSelectTemplate = useCallback(async (template: SessionTemplate) => {
+    // Create a new session from the template
+    const groupId = template.groupId || (groups.length > 0 ? groups[0].id : null);
+    if (!groupId) return;
+    const cwd = template.workingDir || getEffectiveWorkingDir(groupId) || homedir;
+    await createSession(groupId, template.name, cwd, true, template.initialPrompt || undefined);
+  }, [groups, getEffectiveWorkingDir, homedir, createSession]);
+
+  // Ref to the active ChatContainer's skill invoke handler, set via callback
+  const skillInvokeRef = useRef<((skillId: string, args: string) => void) | null>(null);
+
+  const handleCommandPaletteSelectSkill = useCallback((skill: SkillEntry) => {
+    if (activeSessionId && skillInvokeRef.current) {
+      // Route through ChatContainer's handler so message + badge are handled
+      skillInvokeRef.current(skill.id, '');
+    }
+  }, [activeSessionId]);
+
   const shortcutHandlers = useMemo(() => ({
     onNewSession: handleKeyboardNewSession,
     onNextSession: handleNextSession,
@@ -736,7 +816,9 @@ const App: React.FC = () => {
     onExpand: handleExpand,
     onSelect: handleSelect,
     onCodeSearch: handleCodeSearch,
-  }), [handleKeyboardNewSession, handleNextSession, handlePrevSession, handleNextWaiting, handleCloseSession, handleFocusSidebar, handleNewGroup, handleNewSubGroup, handleNavigateUp, handleNavigateDown, handleCollapse, handleExpand, handleSelect, handleCodeSearch]);
+    onChatSearch: handleChatSearch,
+    onCommandPalette: handleCommandPalette,
+  }), [handleKeyboardNewSession, handleNextSession, handlePrevSession, handleNextWaiting, handleCloseSession, handleFocusSidebar, handleNewGroup, handleNewSubGroup, handleNavigateUp, handleNavigateDown, handleCollapse, handleExpand, handleSelect, handleCodeSearch, handleChatSearch, handleCommandPalette]);
 
   useKeyboardShortcuts(shortcutHandlers);
 
@@ -827,50 +909,63 @@ const App: React.FC = () => {
           onMouseDown={handleResizeStart}
         />
         <div className="sidebar-header">
-          <h2>Groups</h2>
-          <div className="sidebar-header-actions">
-            <button
-              className={`icon-button ${memoryPanelOpen ? 'active' : ''}`}
-              onClick={() => setMemoryPanelOpen(prev => !prev)}
-              title="Toggle Memory Panel"
-              aria-label="Toggle Memory Panel"
-            >
-              *
-            </button>
-            <button
-              className="icon-button"
-              onClick={() => setCodeSearchOpen(true)}
-              title="Code Search (Ctrl+Shift+F)"
-              aria-label="Code Search"
-            >
-              🔍
-            </button>
-            <button
-              className="icon-button"
-              onClick={() => setSettingsOpen(true)}
-              title="Settings"
-              aria-label="Settings"
-            >
-              ⚙
-            </button>
-            <button
-              className="icon-button"
-              onClick={() => setJoinModalOpen(true)}
-              title={isAuthenticated ? 'Join Shared Session' : 'Sign in to join sessions'}
-              aria-label="Join Shared Session"
-              disabled={!isAuthenticated}
-            >
-              ⇄
-            </button>
-            <button
-              className="icon-button"
-              onClick={handleCreateGroup}
-              title="New Group"
-              aria-label="New Group"
-            >
-              +
-            </button>
+          <div className="sidebar-header-primary">
+            <h2 className="sidebar-title">Groups</h2>
+            <div className="sidebar-header-actions">
+              <button
+                className={`sidebar-icon-btn ${knowledgePanelOpen ? 'active' : ''}`}
+                onClick={() => setKnowledgePanelOpen(prev => !prev)}
+                title="Knowledge Graph"
+                aria-label="Toggle Knowledge Graph"
+                aria-pressed={knowledgePanelOpen}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 1a2.5 2.5 0 0 0-2.5 2.5c0 .87.45 1.63 1.13 2.07L5.18 9.4A2.48 2.48 0 0 0 3.5 9 2.5 2.5 0 1 0 5.74 11.9l1.83-3.66A2.5 2.5 0 0 0 10.5 3.5 2.5 2.5 0 0 0 8 1zM8 5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm-4.5 8a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                </svg>
+              </button>
+              <button
+                className={`sidebar-icon-btn ${memoryPanelOpen ? 'active' : ''}`}
+                onClick={() => setMemoryPanelOpen(prev => !prev)}
+                title="Memory Panel"
+                aria-label="Toggle Memory Panel"
+                aria-pressed={memoryPanelOpen}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M3 1h10a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm1 2v2h8V3H4zm0 4v2h5V7H4zm0 4v2h8v-2H4z"/>
+                </svg>
+              </button>
+              <button
+                className="sidebar-icon-btn"
+                onClick={handleCreateGroup}
+                title="New Group"
+                aria-label="New Group"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2z"/>
+                </svg>
+              </button>
+              <SidebarOverflowMenu
+                onCodeSearch={() => setCodeSearchOpen(true)}
+                onChatSearch={() => setChatSearchOpen(true)}
+                onTemplates={() => setTemplateModalOpen(true)}
+                onSettings={() => setSettingsOpen(true)}
+                onJoinSession={() => setJoinModalOpen(true)}
+                isAuthenticated={isAuthenticated}
+              />
+            </div>
           </div>
+          <button
+            className="sidebar-search-trigger"
+            onClick={() => setChatSearchOpen(true)}
+            title="Search chat history (Ctrl+Shift+H)"
+            aria-label="Search chat history"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04z"/>
+            </svg>
+            <span>Search chat history...</span>
+            <kbd>Ctrl+Shift+H</kbd>
+          </button>
         </div>
 
         {getTopLevelGroups().map(group => (
@@ -965,6 +1060,14 @@ const App: React.FC = () => {
                   </button>
                 </div>
                 <button
+                  className="group-config-btn"
+                  title="Claude settings for this group"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfigGroupId(configGroupId === group.id ? null : group.id);
+                  }}
+                >&#9881;</button>
+                <button
                   className="icon-button small"
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
@@ -975,6 +1078,21 @@ const App: React.FC = () => {
                 >
                   +
                 </button>
+                {configGroupId === group.id && (
+                  <div className="group-config-popover" onClick={e => e.stopPropagation()}>
+                    <h4>Claude Settings — {group.name}</h4>
+                    <SessionSettingsBar
+                      config={group.claudeConfig || {}}
+                      onChange={(config) => {
+                        updateGroup(group.id, { claudeConfig: config });
+                      }}
+                    />
+                    <button
+                      className="group-config-close"
+                      onClick={() => setConfigGroupId(null)}
+                    >Done</button>
+                  </div>
+                )}
               </div>
               {!group.collapsed && (
                 <div
@@ -1028,7 +1146,7 @@ const App: React.FC = () => {
                     {sharingSessions.has(session.id) && (
                       <span className="share-indicator" title="Sharing" draggable={false}>⇄</span>
                     )}
-                    <span className={`status-pill ${session.state}`} draggable={false}>{session.state}</span>
+                    <span className={`status-pill ${session.state}`} draggable={false}>{session.state.charAt(0).toUpperCase() + session.state.slice(1)}</span>
                     <button
                       className="session-close"
                       draggable={false}
@@ -1139,6 +1257,14 @@ const App: React.FC = () => {
                     </button>
                   </div>
                   <button
+                    className="group-config-btn"
+                    title="Claude settings for this group"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfigGroupId(configGroupId === subGroup.id ? null : subGroup.id);
+                    }}
+                  >&#9881;</button>
+                  <button
                     className="icon-button small"
                     onClick={() => handleNewSession(subGroup.id)}
                     title="New Session"
@@ -1146,6 +1272,21 @@ const App: React.FC = () => {
                   >
                     +
                   </button>
+                  {configGroupId === subGroup.id && (
+                    <div className="group-config-popover" onClick={e => e.stopPropagation()}>
+                      <h4>Claude Settings — {subGroup.name}</h4>
+                      <SessionSettingsBar
+                        config={subGroup.claudeConfig || {}}
+                        onChange={(config) => {
+                          updateGroup(subGroup.id, { claudeConfig: config });
+                        }}
+                      />
+                      <button
+                        className="group-config-close"
+                        onClick={() => setConfigGroupId(null)}
+                      >Done</button>
+                    </div>
+                  )}
                 </div>
                 {!subGroup.collapsed && (
                   <div
@@ -1199,7 +1340,7 @@ const App: React.FC = () => {
                       {sharingSessions.has(session.id) && (
                         <span className="share-indicator" title="Sharing">⇄</span>
                       )}
-                      <span className={`status-pill ${session.state}`}>{session.state}</span>
+                      <span className={`status-pill ${session.state}`}>{session.state.charAt(0).toUpperCase() + session.state.slice(1)}</span>
                       <button
                         className="session-close"
                         onClick={(e) => {
@@ -1291,23 +1432,20 @@ const App: React.FC = () => {
               className="terminal-wrapper"
               style={{ display: session.id === activeSessionId ? 'flex' : 'none' }}
             >
-              <TerminalHeader
-                session={session}
-                isSharing={sharingSessions.has(session.id)}
-                onRename={(name) => updateSession(session.id, { name })}
-                onRestart={() => setRestartKeys(prev => ({ ...prev, [session.id]: (prev[session.id] || 0) + 1 }))}
-                onStop={() => updateSession(session.id, { state: 'stopped' })}
-                onClose={() => handleRemoveSession(session.id)}
-              />
-              <Terminal
+              <ChatContainer
                 sessionId={session.id}
-                cwd={session.workingDir}
-                launchClaude={session.shellType === 'claude'}
-                isStopped={session.state === 'stopped'}
-                restartKey={restartKeys[session.id] || 0}
-                isActive={session.id === activeSessionId}
-                onStart={() => updateSession(session.id, { state: 'idle' })}
-                onError={() => updateSession(session.id, { state: 'error' })}
+                sessionName={session.name}
+                workingDir={session.workingDir}
+                claudeConfig={session.claudeConfig}
+                activeSkillId={session.activeSkillId || null}
+                onConfigChange={(config) => updateSession(session.id, { claudeConfig: config })}
+                onClearSkill={() => {
+                  window.electronAPI.skillClear(session.id);
+                  updateSession(session.id, { activeSkillId: null });
+                }}
+                onSkillInvokeReady={session.id === activeSessionId ? (handler) => { skillInvokeRef.current = handler; } : undefined}
+                scrollToMessageId={session.id === activeSessionId ? scrollToMessageId : null}
+                onScrollComplete={() => setScrollToMessageId(null)}
               />
             </div>
           ))}
@@ -1341,11 +1479,9 @@ const App: React.FC = () => {
                   </button>
                 </div>
               </div>
-              <RemoteTerminal
-                code={rs.code}
-                permission={rs.permission}
-                isActive={activeRemoteCode === rs.code}
-              />
+              <div className="no-session">
+                <p>Remote terminal view has been removed in 3.0</p>
+              </div>
             </div>
           ))}
           {sessions.length === 0 && remoteSessions.length === 0 && (
@@ -1377,6 +1513,12 @@ const App: React.FC = () => {
         onToggle={() => setMemoryPanelOpen(prev => !prev)}
         sessionId={activeSessionId}
         groupId={activeGroupId}
+      />
+
+      {/* Knowledge Graph Panel */}
+      <KnowledgeGraphPanel
+        isOpen={knowledgePanelOpen}
+        onToggle={() => setKnowledgePanelOpen(prev => !prev)}
       />
 
       <footer className="status-bar">
@@ -1495,6 +1637,39 @@ const App: React.FC = () => {
         isOpen={codeSearchOpen}
         directoryPath={activeSession?.workingDir || null}
         onClose={() => setCodeSearchOpen(false)}
+      />
+
+      {/* Chat Search modal */}
+      <SearchModal
+        isOpen={chatSearchOpen}
+        onClose={() => setChatSearchOpen(false)}
+        onNavigate={(sessionId, messageId) => {
+          setActiveSessionId(sessionId);
+          setScrollToMessageId(messageId);
+          setChatSearchOpen(false);
+        }}
+        sessions={sessions}
+      />
+
+      {/* Template Modal */}
+      <TemplateModal
+        isOpen={templateModalOpen}
+        onClose={() => setTemplateModalOpen(false)}
+        onStartFromTemplate={(template) => {
+          setTemplateModalOpen(false);
+          handleCommandPaletteSelectTemplate(template);
+        }}
+      />
+
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onSelectSession={handleCommandPaletteSelectSession}
+        onSelectTemplate={handleCommandPaletteSelectTemplate}
+        onSelectSkill={handleCommandPaletteSelectSkill}
+        sessions={sessions}
+        groups={groups}
       />
 
       {/* Destructive action confirmation dialog */}

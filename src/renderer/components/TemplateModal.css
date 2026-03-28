@@ -1,0 +1,260 @@
+.template-modal {
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  border-radius: 8px;
+  padding: 0;
+  min-width: 440px;
+  max-width: 520px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.template-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #3c3c3c;
+}
+
+.template-modal-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #e0e0e0;
+}
+
+.template-modal-close {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.template-modal-close:hover {
+  color: #e0e0e0;
+}
+
+/* Template list */
+.template-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.template-empty {
+  padding: 32px 20px;
+  text-align: center;
+  color: #888;
+  font-size: 13px;
+}
+
+.template-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  gap: 12px;
+}
+
+.template-item:hover {
+  background: #2a2d2e;
+}
+
+.template-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.template-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e0e0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.template-item-detail {
+  font-size: 11px;
+  color: #888;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.template-item-prompt {
+  font-style: italic;
+  color: #6a9955;
+}
+
+.template-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.template-start-btn {
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  border: none;
+  background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+  color: #1e1e1e;
+  font-weight: 500;
+}
+
+.template-start-btn:hover {
+  opacity: 0.9;
+}
+
+.template-delete-btn {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: #888;
+  line-height: 1;
+}
+
+.template-delete-btn:hover {
+  color: #e06c75;
+  background: rgba(224, 108, 117, 0.1);
+}
+
+/* Footer */
+.template-modal-footer {
+  padding: 12px 20px;
+  border-top: 1px solid #3c3c3c;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Form styles */
+.template-form {
+  padding: 16px 20px;
+}
+
+.template-form-field {
+  margin-bottom: 14px;
+}
+
+.template-form-field label {
+  display: block;
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 6px;
+}
+
+.template-form-field input,
+.template-form-field textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: #1e1e1e;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  color: #d4d4d4;
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.template-form-field input:focus,
+.template-form-field textarea:focus {
+  border-color: #ff8c00;
+}
+
+.template-form-field input::placeholder,
+.template-form-field textarea::placeholder {
+  color: #555;
+}
+
+.template-form-dir-row {
+  display: flex;
+  gap: 8px;
+}
+
+.template-form-dir-row input {
+  flex: 1;
+  cursor: default;
+}
+
+.template-form-dir-row .browse-btn {
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  border: none;
+  background: #3c3c3c;
+  color: #d4d4d4;
+  white-space: nowrap;
+}
+
+.template-form-dir-row .browse-btn:hover {
+  background: #4c4c4c;
+}
+
+.template-form-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.template-form-buttons button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+}
+
+.template-form-buttons .cancel-btn {
+  background: #3c3c3c;
+  color: #d4d4d4;
+}
+
+.template-form-buttons .cancel-btn:hover {
+  background: #4c4c4c;
+}
+
+.template-form-buttons .confirm-btn {
+  background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+  color: #1e1e1e;
+  font-weight: 500;
+}
+
+.template-form-buttons .confirm-btn:hover {
+  opacity: 0.9;
+}
+
+.template-form-buttons .confirm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Footer confirm-btn */
+.template-modal-footer .confirm-btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+  background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+  color: #1e1e1e;
+  font-weight: 500;
+}
+
+.template-modal-footer .confirm-btn:hover {
+  opacity: 0.9;
+}

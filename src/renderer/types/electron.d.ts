@@ -19,25 +19,22 @@ import {
   SymbolSearchResult,
   IndexProgress,
   SymbolType,
+  SessionStatus,
+  ClaudeJsonEvent,
+  ClaudeConfig,
+  ChatMessage,
+  SessionTemplate,
+  SessionTemplateCreateInput,
+  ConversationBranch,
+  KnowledgeNode,
+  KnowledgeEdge,
+  KnowledgePromotion,
+  SkillEntry,
 } from '../../shared/types';
-
-interface StateChangeEvent {
-  sessionId: string;
-  state: string;
-  event: string;
-  timestamp: number;
-}
 
 export interface ElectronAPI {
   platform: string;
   homedir: string;
-  createSession: (id: string, cwd: string, launchClaude?: boolean) => Promise<void>;
-  writeToSession: (id: string, data: string) => void;
-  resizeSession: (id: string, cols: number, rows: number) => void;
-  killSession: (id: string) => void;
-  onPtyData: (callback: (id: string, data: string) => void) => () => void;
-  onPtyExit: (callback: (id: string, exitCode: number) => void) => () => void;
-  onStateChange: (callback: (event: StateChangeEvent) => void) => () => void;
 
   // Menu events
   onMenuNewSession: (callback: () => void) => () => void;
@@ -79,6 +76,12 @@ export interface ElectronAPI {
   getMemoryById: (id: string) => Promise<Memory | null>;
   getGlobalContextMemories: () => Promise<Memory[]>;
   onMemoryExtracted: (callback: (memory: Memory) => void) => () => void;
+
+  // Chat Messages
+  chatGetMessages: (sessionId: string, limit?: number) => Promise<ChatMessage[]>;
+  chatGetMessagesByBranch: (branchId: string, limit?: number) => Promise<ChatMessage[]>;
+  chatCreateMessage: (input: any) => Promise<ChatMessage>;
+  chatSearchMessages: (query: string, sessionId?: string, limit?: number) => Promise<ChatMessage[]>;
 
   // Preferences
   getPreference: (key: string) => Promise<string | null>;
@@ -169,6 +172,55 @@ export interface ElectronAPI {
   openInEditor: (filePath: string, line?: number, column?: number) => Promise<{ success: boolean; error?: string }>;
   detectAvailableEditors: () => Promise<string[]>;
   getEditorOptions: () => Promise<{ value: string; label: string }[]>;
+
+  // Session Templates
+  templatesGetAll: () => Promise<SessionTemplate[]>;
+  templatesCreate: (input: SessionTemplateCreateInput) => Promise<SessionTemplate>;
+  templatesDelete: (id: string) => Promise<boolean>;
+
+  // Conversation Branches
+  branchesGetBySession: (sessionId: string) => Promise<ConversationBranch[]>;
+  branchesCreate: (input: {
+    id: string;
+    sessionId: string;
+    parentBranchId?: string;
+    forkMessageId: string;
+    name?: string;
+  }) => Promise<ConversationBranch>;
+  branchesDelete: (id: string) => Promise<boolean>;
+
+  // Knowledge Graph
+  knowledgeCreate: (content: string, options?: { tier?: number; domains?: string[]; tags?: string[]; scopeSessionId?: string; scopeGroupId?: string }) => Promise<KnowledgeNode>;
+  knowledgeSearch: (query: string, limit?: number) => Promise<KnowledgeNode[]>;
+  knowledgeGetByTier: (tier: number, limit?: number) => Promise<KnowledgeNode[]>;
+  knowledgeGetByDomain: (domain: string, limit?: number) => Promise<KnowledgeNode[]>;
+  knowledgeGetRelated: (nodeId: string) => Promise<KnowledgeEdge[]>;
+  knowledgeGetNode: (id: string) => Promise<KnowledgeNode | null>;
+  knowledgePromote: (id: string, toTier: number, evidence?: string[]) => Promise<KnowledgePromotion | null>;
+  knowledgePin: (id: string, pinned: boolean) => Promise<boolean>;
+  knowledgeDelete: (id: string) => Promise<boolean>;
+  knowledgeExtractFromChat: (userContent: string, assistantContent: string, sessionId: string, groupId?: string) => Promise<any[]>;
+
+  // Skill System
+  skillListAll: () => Promise<SkillEntry[]>;
+  skillGetContent: (id: string) => Promise<string | null>;
+  skillSearch: (query: string) => Promise<SkillEntry[]>;
+  skillRefresh: () => Promise<SkillEntry[]>;
+  skillInvoke: (sessionId: string, skillId: string, userArgs: string) => Promise<{ skillId: string; name: string }>;
+  skillClear: (sessionId: string) => Promise<void>;
+
+  // Claude Session API (3.0)
+  claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) => Promise<void>;
+  claudeSend: (sessionId: string, prompt: string) => Promise<void>;
+  claudeKill: (sessionId: string) => Promise<void>;
+  claudeGetStatus: (sessionId: string) => Promise<SessionStatus>;
+  claudeIsRunning: (sessionId: string) => Promise<boolean>;
+  claudeHasSession: (sessionId: string) => Promise<boolean>;
+  claudeGetResolvedConfig: (sessionId: string) => Promise<ClaudeConfig>;
+  onClaudeEvent: (callback: (sessionId: string, event: ClaudeJsonEvent) => void) => () => void;
+  onClaudeStateChange: (callback: (sessionId: string, status: SessionStatus) => void) => () => void;
+  onClaudeEnded: (callback: (sessionId: string) => void) => () => void;
+  onClaudeError: (callback: (sessionId: string, error: string) => void) => () => void;
 }
 
 declare global {

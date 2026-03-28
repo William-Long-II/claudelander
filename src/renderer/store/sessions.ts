@@ -19,33 +19,14 @@ export function useSessions() {
       }
     };
     loadSessions();
-
-    // Listen for state changes from hooks
-    const cleanupStateChange = window.electronAPI.onStateChange((event) => {
-      // Validate state is a valid SessionState
-      const validStates: SessionState[] = ['idle', 'working', 'waiting', 'error', 'stopped'];
-      if (!validStates.includes(event.state as SessionState)) {
-        console.error('Invalid session state received:', event.state);
-        return;
-      }
-
-      setSessions(prev => prev.map(s =>
-        s.id === event.sessionId
-          ? { ...s, state: event.state as SessionState, lastActivityAt: new Date(event.timestamp * 1000) }
-          : s
-      ));
-    });
-
-    return () => {
-      cleanupStateChange();
-    };
   }, []);
 
   const createSession = useCallback(async (
     groupId: string,
     name: string,
     workingDir: string,
-    launchClaude: boolean = true
+    launchClaude: boolean = true,
+    initialPrompt?: string,
   ): Promise<Session> => {
     return new Promise((resolve, reject) => {
       setSessions(prev => {
@@ -63,8 +44,12 @@ export function useSessions() {
 
         // Persist asynchronously
         window.electronAPI.createDbSession(session)
-          .then(() => {
+          .then(async () => {
             setActiveSessionId(session.id);
+            // Auto-start Claude with template initial prompt
+            if (launchClaude && initialPrompt) {
+              await window.electronAPI.claudeStart(session.id, workingDir, initialPrompt);
+            }
             resolve(session);
           })
           .catch((error) => {
@@ -79,19 +64,14 @@ export function useSessions() {
     });
   }, []);
 
-  const updateSessionState = useCallback(async (id: string, state: SessionState) => {
-    try {
-      const updates = { state, lastActivityAt: new Date() };
-      await window.electronAPI.updateDbSession(id, updates);
-      setSessions(prev => prev.map(s =>
-        s.id === id
-          ? { ...s, ...updates }
-          : s
-      ));
-    } catch (error) {
-      console.error('Failed to update session state:', error);
-      // Don't update state - DB failed
-    }
+  // Synchronous local-state update for sidebar — main process already handles the DB write,
+  // so we only need to keep the renderer's sessions array in sync immediately.
+  const updateSessionState = useCallback((id: string, state: SessionState) => {
+    setSessions(prev => prev.map(s =>
+      s.id === id
+        ? { ...s, state, lastActivityAt: new Date() }
+        : s
+    ));
   }, []);
 
   const updateSession = useCallback(async (id: string, updates: Partial<Session>) => {

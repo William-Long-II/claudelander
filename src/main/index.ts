@@ -1,18 +1,21 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import * as path from 'path';
-import { ptyManager } from './pty-manager';
 import { getDatabase, closeDatabase } from './database';
 import * as groupsRepo from './repositories/groups';
 import * as sessionsRepo from './repositories/sessions';
 import * as prefsRepo from './repositories/preferences';
 import * as memoriesRepo from './repositories/memories';
-import { StateMonitor } from './state-monitor';
+import * as chatMessagesRepo from './repositories/chat-messages';
+import * as templatesRepo from './repositories/session-templates';
+import * as branchesRepo from './repositories/conversation-branches';
+import * as knowledgeRepo from './repositories/knowledge';
+import { randomUUID } from 'crypto';
 import { createApplicationMenu } from './menu';
 import { initAutoUpdater, checkForUpdatesManual, downloadUpdate } from './auto-updater';
 import { notificationManager } from './notification-manager';
 import { trayManager } from './tray-manager';
 import { soundManager, SoundEvent } from './sound-manager';
-import { Group, Session, MemoryCreateInput, MemoryUpdateInput } from '../shared/types';
+import { Group, Session, MemoryCreateInput, MemoryUpdateInput, KnowledgeTier } from '../shared/types';
 import { authService } from './sharing/auth';
 import { shareManager } from './sharing/share-manager';
 import { teamsAuthService } from './teams/teams-auth';
@@ -22,6 +25,12 @@ import log from 'electron-log';
 import { getApiServer } from './api';
 import { getVectorSearchManager, disposeVectorSearchManager } from './vector-search';
 import { openInEditor, detectAvailableEditors, getEditorOptions, EditorType } from './editor-launcher';
+import { claudeSessionManager } from './claude-session-manager';
+import { resolveClaudeConfig, buildKnowledgeContext } from './claude-config-resolver';
+import { extractKnowledgeCandidates } from './knowledge/extractor';
+import { detectDomains } from './knowledge/domain-tagger';
+import { findPromotionCandidates, applyDecayPass } from './knowledge/promotion-engine';
+import * as skillRegistry from './skill-registry';
 
 // Global error handlers to catch uncaught exceptions and prevent silent crashes
 process.on('uncaughtException', (error: Error) => {
@@ -50,7 +59,6 @@ if (process.platform === 'win32') {
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
-let stateMonitor: StateMonitor | null = null;
 let isQuitting = false;
 
 // Register deep link protocol
@@ -138,12 +146,12 @@ soundManager.setSessionStateLookup((sessionId: string) => {
 
 const SPLASH_DURATION = 2500; // 2.5 seconds
 
-function updateTrayWithWaitingSessions(): void {
-  const waitingSessions = Array.from(sessionStates.entries())
-    .filter(([_, info]) => info.state === 'waiting')
+function updateTrayWithActiveSessions(): void {
+  const activeSessions = Array.from(sessionStates.entries())
+    .filter(([_, info]) => info.state === 'working')
     .map(([id, info]) => ({ id, name: info.name }));
 
-  trayManager.updateWaitingSessions(waitingSessions);
+  trayManager.updateWaitingSessions(activeSessions);
 }
 
 function handleStateChange(sessionId: string, state: string, sessionName?: string): void {
@@ -170,23 +178,12 @@ function handleStateChange(sessionId: string, state: string, sessionName?: strin
   // Get previous state for sound manager
   const previousState = sessionStates.get(sessionId)?.state;
 
-  if (state === 'waiting') {
-    sessionStates.set(sessionId, { name, state });
-
-    // Show notification
-    notificationManager.showWaitingNotification({
-      sessionId,
-      sessionName: name,
-      message: 'Waiting for input',
-    });
+  // Update state but keep name
+  const existing = sessionStates.get(sessionId);
+  if (existing) {
+    sessionStates.set(sessionId, { ...existing, state });
   } else {
-    // Update state but keep name
-    const existing = sessionStates.get(sessionId);
-    if (existing) {
-      sessionStates.set(sessionId, { ...existing, state });
-    } else {
-      sessionStates.set(sessionId, { name, state });
-    }
+    sessionStates.set(sessionId, { name, state });
   }
 
   // Play sound notification
@@ -202,16 +199,14 @@ function handleStateChange(sessionId: string, state: string, sessionName?: strin
     }
   }
 
-  if (state === 'waiting') {
-    notificationManager.sendTeamsNotification(sessionId, name, projectPath, 'waiting');
-  } else if (state === 'error') {
+  if (state === 'error') {
     notificationManager.sendTeamsNotification(sessionId, name, projectPath, 'error');
   } else if (state === 'idle' && previousState === 'working') {
     notificationManager.sendTeamsNotification(sessionId, name, projectPath, 'complete');
   }
 
   // Update tray
-  updateTrayWithWaitingSessions();
+  updateTrayWithActiveSessions();
 }
 
 function createSplashWindow(): void {
@@ -262,25 +257,6 @@ function createWindow(): void {
 
   // Mark all sessions as stopped on startup (PTY processes don't survive restarts)
   sessionsRepo.markAllSessionsStopped();
-
-  // Start state monitor
-  stateMonitor = new StateMonitor(ptyManager.getSocketPath());
-  stateMonitor.start();
-
-  stateMonitor.on('stateChange', (event) => {
-    mainWindow?.webContents.send('state:change', event);
-    // Update database with error handling
-    try {
-      sessionsRepo.updateSession(event.sessionId, {
-        state: event.state,
-        lastActivityAt: new Date(),
-      });
-    } catch (error) {
-      console.error('Failed to update session state in database:', error);
-    }
-    // Handle notifications and tray updates
-    handleStateChange(event.sessionId, event.state);
-  });
 
   // Restore saved window bounds or use defaults
   const savedBounds = prefsRepo.getWindowBounds();
@@ -351,6 +327,77 @@ function createWindow(): void {
     log.error('[Main] Failed to auto-start API server:', err);
   });
 
+  // Run knowledge promotion engine periodically (every 30 min)
+  const runPromotionCycle = () => {
+    try {
+      log.info('[Knowledge] Running promotion cycle...');
+      const candidates = findPromotionCandidates();
+      log.info(`[Knowledge] Found ${candidates.length} promotion candidates`);
+      let promoted = 0;
+      // Dedup by evidence key stored in T2 node tags
+      const existingT2 = knowledgeRepo.getKnowledgeNodesByTier(2 as KnowledgeTier, 200);
+      const existingEvidenceKeys = new Set(
+        existingT2.flatMap(n => (n.tags || []).filter(t => t.startsWith('evidence:')))
+      );
+
+      for (const candidate of candidates) {
+        const evidenceKey = `evidence:${candidate.evidence.sort().join(',')}`;
+        if (existingEvidenceKeys.has(evidenceKey)) continue;
+
+        const id = randomUUID();
+        knowledgeRepo.createKnowledgeNode({
+          id,
+          tier: candidate.toTier,
+          content: candidate.proposedContent,
+          source: 'promoted',
+          domains: candidate.domains,
+          tags: ['auto-promoted', evidenceKey],
+        });
+        knowledgeRepo.logPromotion({
+          id: randomUUID(),
+          nodeId: id,
+          fromTier: candidate.fromTier,
+          toTier: candidate.toTier,
+          trigger: candidate.trigger,
+          evidence: candidate.evidence,
+        });
+        promoted++;
+      }
+      if (promoted > 0) {
+        log.info(`[Knowledge] Promoted ${promoted} knowledge nodes (${candidates.length - promoted} skipped as duplicates)`);
+      }
+    } catch (error) {
+      log.error('[Knowledge] Promotion cycle error:', error);
+    }
+  };
+
+  // Run confidence decay separately — once per day, not every 30 min
+  // applyDecayPass applies 5% flat to nodes older than 7 days
+  const runDecayCycle = () => {
+    try {
+      const decayed = applyDecayPass();
+      if (decayed > 0) {
+        log.info(`[Knowledge] Applied confidence decay to ${decayed} nodes`);
+      }
+    } catch (error) {
+      log.error('[Knowledge] Decay cycle error:', error);
+    }
+  };
+
+  // Build skill registry on startup
+  try {
+    skillRegistry.buildRegistry();
+  } catch (err) {
+    log.error('[SkillRegistry] Failed to build on startup:', err);
+  }
+
+  // Promotion: startup + every 30 minutes
+  setTimeout(runPromotionCycle, 10000);
+  setInterval(runPromotionCycle, 30 * 60 * 1000);
+  // Decay: startup + once per day (24 hours)
+  setTimeout(runDecayCycle, 15000);
+  setInterval(runDecayCycle, 24 * 60 * 60 * 1000);
+
   // Vector search event forwarding
   const vsManager = getVectorSearchManager();
 
@@ -366,33 +413,43 @@ function createWindow(): void {
     mainWindow?.webContents.send('vector-search:error', data);
   });
 
-  // PTY data forwarding
-  ptyManager.on('data', ({ id, data }) => {
-    mainWindow?.webContents.send('pty:data', id, data);
-    // Broadcast to mobile clients
-    getApiServer().broadcastTerminalData(id, data);
+  // Claude session event forwarding (3.0)
+  claudeSessionManager.on('event', ({ sessionId, event }: { sessionId: string; event: any }) => {
+    mainWindow?.webContents.send('claude:event', sessionId, event);
   });
 
-  ptyManager.on('exit', ({ id, exitCode }) => {
-    mainWindow?.webContents.send('pty:exit', id, exitCode);
-  });
-
-  // PTY state detection forwarding
-  ptyManager.on('stateChange', (event) => {
-    mainWindow?.webContents.send('state:change', event);
-    // Update database
+  claudeSessionManager.on('state-change', ({ sessionId, status }: { sessionId: string; status: any }) => {
+    mainWindow?.webContents.send('claude:stateChange', sessionId, status);
+    // Map 3.0 SessionState3 to legacy state for DB and notifications
+    const legacyState = status.state === 'idle' ? 'idle'
+      : status.state === 'error' ? 'error'
+      : 'working';
     try {
-      sessionsRepo.updateSession(event.sessionId, {
-        state: event.state,
+      sessionsRepo.updateSession(sessionId, {
+        state: legacyState,
         lastActivityAt: new Date(),
       });
     } catch (error) {
-      console.error('Failed to update session state in database:', error);
+      log.error('Failed to update session state:', error);
     }
-    // Handle notifications and tray updates
-    handleStateChange(event.sessionId, event.state);
-    // Broadcast to mobile clients
-    getApiServer().broadcastSessionState(event.sessionId, event.state, event.event);
+    handleStateChange(sessionId, legacyState);
+  });
+
+  claudeSessionManager.on('session-ended', ({ sessionId }: { sessionId: string }) => {
+    // Persist the Claude session ID for resume across app restarts
+    const claudeSessionId = claudeSessionManager.getClaudeSessionId(sessionId);
+    if (claudeSessionId) {
+      try {
+        sessionsRepo.setClaudeSessionId(sessionId, claudeSessionId);
+      } catch (error) {
+        log.error('Failed to persist Claude session ID:', error);
+      }
+    }
+    mainWindow?.webContents.send('claude:ended', sessionId);
+  });
+
+  claudeSessionManager.on('error', ({ sessionId, error }: { sessionId: string; error: string }) => {
+    mainWindow?.webContents.send('claude:error', sessionId, error);
   });
 
   // Save window bounds on resize/move
@@ -460,37 +517,63 @@ function safeOn(channel: string, handler: (...args: any[]) => void): void {
   });
 }
 
-// IPC Handlers
-ipcMain.handle('pty:create', async (_, id: string, cwd: string, launchClaude: boolean = false) => {
-  try {
-    // Look up the session to get its groupId for memory injection
-    const sessions = sessionsRepo.getAllSessions();
-    const session = sessions.find(s => s.id === id);
-    const groupId = session?.groupId || null;
+// ============================================================================
+// Claude Session IPC Handlers (3.0 — replaces PTY)
+// ============================================================================
 
-    ptyManager.createSession(id, cwd, launchClaude, groupId);
-    // Play session start sound
-    soundManager.playStartSound();
-  } catch (error) {
-    log.error('[Main] Failed to create PTY session:', error);
-    throw error; // Re-throw so renderer knows it failed
+safeHandle('claude:start', async (sessionId: string, cwd: string, prompt: string, options?: any) => {
+  log.info(`[ClaudeSession IPC] claude:start called — session=${sessionId}, cwd=${cwd}, prompt=${prompt.substring(0, 50)}`);
+  const sessions = sessionsRepo.getAllSessions();
+  const session = sessions.find(s => s.id === sessionId);
+  const groupId = session?.groupId || undefined;
+  const resolvedConfig = resolveClaudeConfig(sessionId);
+
+  // Check for stored Claude session ID to resume across app restarts
+  const storedClaudeSessionId = session?.claudeSessionId || undefined;
+  if (storedClaudeSessionId) {
+    log.info(`[ClaudeSession IPC] Resuming stored Claude session: ${storedClaudeSessionId}`);
   }
-});
 
-safeOn('pty:write', (id: string, data: string) => {
-  ptyManager.write(id, data);
-});
+  // Build knowledge context to prepend to prompt
+  const knowledgeContext = buildKnowledgeContext(sessionId, session?.groupId);
+  const augmentedPrompt = knowledgeContext ? knowledgeContext + prompt : prompt;
 
-safeOn('pty:resize', (id: string, cols: number, rows: number) => {
-  ptyManager.resize(id, cols, rows);
-});
-
-safeOn('pty:kill', (id: string) => {
-  // Stop sharing if this session was being shared
-  shareManager.stopSharing(id).catch(() => {
-    // Ignore errors - session may not have been shared
+  claudeSessionManager.startSession(sessionId, cwd, augmentedPrompt, {
+    groupId,
+    claudeConfig: resolvedConfig,
+    resumeSessionId: storedClaudeSessionId,
   });
-  ptyManager.kill(id);
+
+  soundManager.playStartSound();
+});
+
+safeHandle('claude:send', (sessionId: string, prompt: string) => {
+  const resolvedConfig = resolveClaudeConfig(sessionId);
+  const sessions = sessionsRepo.getAllSessions();
+  const session = sessions.find(s => s.id === sessionId);
+  const knowledgeContext = buildKnowledgeContext(sessionId, session?.groupId);
+  const augmentedPrompt = knowledgeContext ? knowledgeContext + prompt : prompt;
+  claudeSessionManager.sendMessage(sessionId, augmentedPrompt, resolvedConfig);
+});
+
+safeHandle('claude:kill', (sessionId: string) => {
+  claudeSessionManager.killSession(sessionId);
+});
+
+safeHandle('claude:status', (sessionId: string) => {
+  return claudeSessionManager.getSessionStatus(sessionId);
+});
+
+safeHandle('claude:isRunning', (sessionId: string) => {
+  return claudeSessionManager.isSessionRunning(sessionId);
+});
+
+safeHandle('claude:hasSession', (sessionId: string) => {
+  return claudeSessionManager.hasSession(sessionId);
+});
+
+safeHandle('claude:getResolvedConfig', (sessionId: string) => {
+  return resolveClaudeConfig(sessionId);
 });
 
 // Database IPC Handlers - Groups
@@ -548,6 +631,18 @@ ipcMain.handle('db:sessions:delete', async (_, id: string) => {
   } catch {
     // Ignore errors - session may not have been shared
   }
+  // Kill any running Claude session
+  claudeSessionManager.removeSession(id);
+  // Delete T1 knowledge nodes scoped to this session (T2/T3 are kept — they've been promoted)
+  try {
+    const db = getDatabase();
+    const result = db.prepare('DELETE FROM knowledge_nodes WHERE scope_session_id = ? AND tier = 1').run(id);
+    if (result.changes > 0) {
+      log.info(`[Knowledge] Deleted ${result.changes} T1 nodes for deleted session ${id}`);
+    }
+  } catch (error) {
+    log.error('[Knowledge] Failed to clean up session knowledge:', error);
+  }
   sessionsRepo.deleteSession(id);
   getApiServer().broadcastSessionsUpdated();
 });
@@ -593,6 +688,204 @@ safeHandle('db:memories:getGlobal', () => {
   return memoriesRepo.getGlobalContextMemories();
 });
 
+// Chat Messages IPC Handlers
+safeHandle('chat:getMessages', (sessionId: string, limit?: number) => {
+  return chatMessagesRepo.getMessagesBySession(sessionId, limit);
+});
+
+safeHandle('chat:getMessagesByBranch', (branchId: string, limit?: number) => {
+  return chatMessagesRepo.getMessagesByBranch(branchId, limit);
+});
+
+safeHandle('chat:createMessage', (input: any) => {
+  return chatMessagesRepo.createChatMessage(input);
+});
+
+safeHandle('chat:searchMessages', (query: string, sessionId?: string, limit?: number) => {
+  return chatMessagesRepo.searchMessages(query, sessionId, limit);
+});
+
+// Session Templates IPC Handlers
+safeHandle('templates:getAll', () => {
+  return templatesRepo.getAllSessionTemplates();
+});
+
+safeHandle('templates:create', (input: any) => {
+  return templatesRepo.createSessionTemplate(input);
+});
+
+safeHandle('templates:delete', (id: string) => {
+  return templatesRepo.deleteSessionTemplate(id);
+});
+
+// Conversation Branches IPC Handlers
+safeHandle('branches:getBySession', (sessionId: string) => {
+  return branchesRepo.getBranchesBySession(sessionId);
+});
+
+safeHandle('branches:create', (input: any) => {
+  return branchesRepo.createBranch(input);
+});
+
+safeHandle('branches:delete', (id: string) => {
+  return branchesRepo.deleteBranch(id);
+});
+
+// Knowledge Graph IPC Handlers
+safeHandle('knowledge:create', (content: string, options?: { tier?: number; domains?: string[]; tags?: string[]; scopeSessionId?: string; scopeGroupId?: string }) => {
+  // Auto-detect domains from content if not explicitly provided
+  const domains = options?.domains ?? detectDomains(content);
+  return knowledgeRepo.createKnowledgeNode({
+    id: randomUUID(),
+    tier: (options?.tier ?? 1) as KnowledgeTier,
+    content,
+    source: 'user-created',
+    domains,
+    tags: options?.tags ?? ['user-saved'],
+    scopeSessionId: options?.scopeSessionId,
+    scopeGroupId: options?.scopeGroupId,
+  });
+});
+
+safeHandle('knowledge:search', (query: string, limit?: number) => {
+  return knowledgeRepo.searchKnowledgeNodes(query, limit);
+});
+
+safeHandle('knowledge:getByTier', (tier: number, limit?: number) => {
+  return knowledgeRepo.getKnowledgeNodesByTier(tier as KnowledgeTier, limit);
+});
+
+safeHandle('knowledge:getByDomain', (domain: string, limit?: number) => {
+  return knowledgeRepo.getKnowledgeNodesByDomain(domain, limit);
+});
+
+safeHandle('knowledge:getRelated', (nodeId: string) => {
+  return knowledgeRepo.getEdgesForNode(nodeId);
+});
+
+safeHandle('knowledge:getNode', (id: string) => {
+  return knowledgeRepo.getKnowledgeNode(id);
+});
+
+safeHandle('knowledge:promote', (id: string, toTier: number, evidence?: string[]) => {
+  const node = knowledgeRepo.getKnowledgeNode(id);
+  if (!node) return null;
+  knowledgeRepo.updateKnowledgeNode(id, { tier: toTier as KnowledgeTier });
+  return knowledgeRepo.logPromotion({
+    id: randomUUID(),
+    nodeId: id,
+    fromTier: node.tier,
+    toTier: toTier as KnowledgeTier,
+    trigger: 'manual',
+    evidence: evidence || [],
+  });
+});
+
+safeHandle('knowledge:pin', (id: string, pinned: boolean) => {
+  knowledgeRepo.updateKnowledgeNode(id, {
+    confidence: pinned ? 1.0 : 0.5,
+  });
+  return true;
+});
+
+safeHandle('knowledge:delete', (id: string) => {
+  knowledgeRepo.deleteKnowledgeNode(id);
+  return true;
+});
+
+safeHandle('knowledge:extractFromChat', (userContent: string, assistantContent: string, sessionId: string, groupId?: string) => {
+  const candidates = extractKnowledgeCandidates(userContent, assistantContent);
+  const created = [];
+  for (const candidate of candidates) {
+    const node = knowledgeRepo.createKnowledgeNode({
+      id: randomUUID(),
+      tier: 1 as KnowledgeTier,
+      content: candidate.content,
+      source: 'auto-extracted',
+      confidence: candidate.confidence,
+      domains: candidate.domains,
+      tags: [candidate.trigger, 'auto-captured'],
+      scopeSessionId: sessionId,
+      scopeGroupId: groupId || null,
+    });
+    created.push(node);
+  }
+  return created;
+});
+
+// ============================================================================
+// Skill System IPC Handlers
+// ============================================================================
+
+safeHandle('skill:listAll', () => {
+  return skillRegistry.getRegistry();
+});
+
+safeHandle('skill:getContent', (id: string) => {
+  return skillRegistry.getSkillContent(id);
+});
+
+safeHandle('skill:search', (query: string) => {
+  return skillRegistry.searchSkills(query);
+});
+
+safeHandle('skill:refresh', () => {
+  return skillRegistry.buildRegistry();
+});
+
+safeHandle('skill:invoke', async (sessionId: string, skillId: string, userArgs: string) => {
+  const skill = skillRegistry.getSkillById(skillId);
+  if (!skill) throw new Error(`Unknown skill "${skillId}". Type / to see available skills.`);
+
+  const content = skillRegistry.getSkillContent(skillId);
+  if (!content) throw new Error(`Skill file is empty or unreadable: ${skill.path}`);
+  log.info(`[Skill] Invoking ${skillId} (${content.length} chars) in session ${sessionId}`);
+
+  // Build the prompt: wrap skill content as instructions for Claude to execute
+  let prompt: string;
+  if (userArgs.trim()) {
+    prompt = `You are now operating in "${skill.name}" mode from the ${skill.plugin} plugin. Follow the instructions below exactly.\n\n${content}\n\n---\n\nUser request: ${userArgs}`;
+  } else {
+    prompt = `You are now operating in "${skill.name}" mode from the ${skill.plugin} plugin. Follow the instructions below and execute them against the current project.\n\n${content}`;
+  }
+
+  // Resolve config, optionally overriding model from skill metadata
+  const resolvedConfig = resolveClaudeConfig(sessionId);
+  if (skill.model && !resolvedConfig.model) {
+    resolvedConfig.model = skill.model;
+  }
+
+  const sessions = sessionsRepo.getAllSessions();
+  const session = sessions.find(s => s.id === sessionId);
+
+  // Build knowledge context
+  const knowledgeContext = buildKnowledgeContext(sessionId, session?.groupId);
+  const augmentedPrompt = knowledgeContext ? knowledgeContext + prompt : prompt;
+
+  // Check if session exists in manager — resume or start
+  const hasSession = claudeSessionManager.hasSession(sessionId);
+  if (hasSession) {
+    claudeSessionManager.sendMessage(sessionId, augmentedPrompt, resolvedConfig);
+  } else {
+    const cwd = session?.workingDir || '.';
+    claudeSessionManager.startSession(sessionId, cwd, augmentedPrompt, {
+      groupId: session?.groupId,
+      claudeConfig: resolvedConfig,
+      resumeSessionId: session?.claudeSessionId || undefined,
+    });
+  }
+
+  // Persist active skill on the session
+  sessionsRepo.updateSession(sessionId, { activeSkillId: skillId });
+
+  soundManager.playStartSound();
+  return { skillId, name: skill.name };
+});
+
+safeHandle('skill:clear', (sessionId: string) => {
+  sessionsRepo.updateSession(sessionId, { activeSkillId: null });
+});
+
 // Preferences IPC Handlers
 safeHandle('prefs:get', (key: string) => {
   return prefsRepo.getPreference(key);
@@ -624,6 +917,11 @@ safeHandle('prefs:getAll', () => {
     soundStartCustomPath: prefsRepo.getPreference('soundStartCustomPath') ?? '',
     soundCompleteEnabled: prefsRepo.getPreference('soundCompleteEnabled') ?? 'true',
     soundCompleteCustomPath: prefsRepo.getPreference('soundCompleteCustomPath') ?? '',
+    // Chat mode settings (3.0)
+    sendShortcut: prefsRepo.getPreference('sendShortcut') ?? 'ctrl+enter',
+    chatFontSize: prefsRepo.getPreference('chatFontSize') ?? '14',
+    showThinking: prefsRepo.getPreference('showThinking') ?? 'true',
+    knowledgePanelOpen: prefsRepo.getPreference('knowledgePanelOpen') ?? 'false',
   };
   return settings;
 });
@@ -1087,14 +1385,13 @@ app.on('before-quit', (event) => {
     }
 
     try {
-      await ptyManager.killAll();
+      await claudeSessionManager.killAll();
     } catch (e) {
-      log.error('Error killing PTYs on quit:', e);
+      log.error('Error killing Claude sessions on quit:', e);
     }
 
     disposeVectorSearchManager();
     trayManager.destroy();
-    stateMonitor?.stop();
     closeDatabase();
 
     cleanupComplete = true;
