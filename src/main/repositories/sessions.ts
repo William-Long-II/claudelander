@@ -18,6 +18,7 @@ export function getAllSessions(): Session[] {
     lastActivityAt: new Date(row.last_activity_at),
     claudeConfig: row.claude_config ? (() => { try { return JSON.parse(row.claude_config); } catch { log.warn(`[Sessions] Malformed claude_config for session ${row.id}`); return undefined; } })() : undefined,
     claudeSessionId: row.claude_session_id || null,
+    activeSkillId: row.active_skill_id || null,
   }));
 }
 
@@ -73,6 +74,11 @@ export function updateSession(id: string, updates: Partial<Session>): void {
   if ((updates as any).claudeSessionId !== undefined) {
     fields.push('claude_session_id = ?');
     values.push((updates as any).claudeSessionId);
+  }
+
+  if (updates.activeSkillId !== undefined) {
+    fields.push('active_skill_id = ?');
+    values.push(updates.activeSkillId);
   }
 
   if (fields.length > 0) {

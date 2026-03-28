@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { ChatMessage, ChatMessageData } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { SessionSettingsBar } from './SessionSettingsBar';
@@ -12,18 +12,22 @@ interface Props {
   sessionName: string;
   workingDir: string;
   claudeConfig?: ClaudeConfig;
+  activeSkillId?: string | null;
   onConfigChange?: (config: ClaudeConfig) => void;
+  onClearSkill?: () => void;
+  onSkillInvokeReady?: (handler: (skillId: string, args: string) => void) => void;
   scrollToMessageId?: string | null;
   onScrollComplete?: () => void;
 }
 
-export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, workingDir, claudeConfig, onConfigChange, scrollToMessageId, onScrollComplete }) => {
+export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, workingDir, claudeConfig, activeSkillId, onConfigChange, onClearSkill, onSkillInvokeReady, scrollToMessageId, onScrollComplete }) => {
   const {
     messages,
     isRunning,
     status,
     currentStreamingMessage,
     sendMessage,
+    addUserMessage,
     stopSession,
     currentBranchId,
     switchBranch,
@@ -31,6 +35,39 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
 
   const chatPrefs = useChatPreferences();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [localSkillId, setLocalSkillId] = useState<string | null>(null);
+  const [activeSkillName, setActiveSkillName] = useState<string | null>(null);
+
+  // Effective skill ID: local override (set immediately on invoke) or prop from DB
+  const effectiveSkillId = localSkillId ?? activeSkillId ?? null;
+
+  // Sync local state when prop changes (e.g. on app load or clear)
+  useEffect(() => {
+    setLocalSkillId(null);
+  }, [activeSkillId]);
+
+  // Resolve skill name from effective ID
+  useEffect(() => {
+    if (!effectiveSkillId) {
+      setActiveSkillName(null);
+      return;
+    }
+    window.electronAPI.skillListAll().then(skills => {
+      const skill = skills.find(s => s.id === effectiveSkillId);
+      setActiveSkillName(skill ? skill.name : effectiveSkillId);
+    }).catch(() => setActiveSkillName(effectiveSkillId));
+  }, [effectiveSkillId]);
+
+  // Auto-clear skill badge when Claude finishes responding
+  const prevIsRunning = useRef(false);
+  useEffect(() => {
+    if (prevIsRunning.current && !isRunning && effectiveSkillId) {
+      // Claude just finished — clear the skill badge
+      setLocalSkillId(null);
+      onClearSkill?.();
+    }
+    prevIsRunning.current = isRunning;
+  }, [isRunning, effectiveSkillId, onClearSkill]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -59,6 +96,27 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
       scopeSessionId: sessionId || undefined,
     });
   }, [sessionId]);
+
+  const handleSkillInvoke = useCallback(async (skillId: string, args: string) => {
+    if (!sessionId) return;
+    // Show the user's command in the chat
+    const displayText = args ? `/${skillId} ${args}` : `/${skillId}`;
+    addUserMessage(displayText);
+
+    try {
+      await window.electronAPI.skillInvoke(sessionId, skillId, args);
+      // Update local state immediately so badge appears without waiting for prop refresh
+      setLocalSkillId(skillId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addUserMessage(`Error: ${msg}`);
+    }
+  }, [sessionId, addUserMessage]);
+
+  // Expose skill invoke handler to parent (for command palette)
+  useEffect(() => {
+    onSkillInvokeReady?.(handleSkillInvoke);
+  }, [handleSkillInvoke, onSkillInvokeReady]);
 
   const handleFork = useCallback(async (messageId: string) => {
     if (!sessionId) return;
@@ -93,11 +151,32 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
     );
   }
 
+  // Extract plugin name from skill ID (e.g. "cook-en" from "cook-en:brainstorm")
+  const activeSkillPlugin = effectiveSkillId?.split(':')[0] || null;
+
   return (
     <div className="chat-container">
       <div className="chat-header">
         <h3>{sessionName}</h3>
         <span className="chat-working-dir">{workingDir}</span>
+        {effectiveSkillId && (
+          <span className="active-skill-badge">
+            <span className="active-skill-label">
+              {activeSkillPlugin && <span className="active-skill-plugin">{activeSkillPlugin}</span>}
+              {activeSkillName || effectiveSkillId}
+            </span>
+            <button
+              className="active-skill-clear"
+              onClick={() => {
+                setLocalSkillId(null);
+                onClearSkill?.();
+              }}
+              title="Exit skill mode"
+            >
+              x
+            </button>
+          </span>
+        )}
         {status && (
           <span className={`chat-status ${status.state}`}>
             {status.description}
@@ -138,6 +217,7 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
       <ChatInput
         onSend={sendMessage}
         onStop={stopSession}
+        onSkillInvoke={handleSkillInvoke}
         isRunning={isRunning}
         disabled={!sessionId}
         sendShortcut={chatPrefs.sendShortcut}

@@ -29,6 +29,7 @@ import {
   KnowledgeNode,
   KnowledgeEdge,
   KnowledgePromotion,
+  SkillEntry,
 } from '../../shared/types';
 
 export interface ElectronAPI {
@@ -199,6 +200,14 @@ export interface ElectronAPI {
   knowledgePin: (id: string, pinned: boolean) => Promise<boolean>;
   knowledgeDelete: (id: string) => Promise<boolean>;
   knowledgeExtractFromChat: (userContent: string, assistantContent: string, sessionId: string, groupId?: string) => Promise<any[]>;
+
+  // Skill System
+  skillListAll: () => Promise<SkillEntry[]>;
+  skillGetContent: (id: string) => Promise<string | null>;
+  skillSearch: (query: string) => Promise<SkillEntry[]>;
+  skillRefresh: () => Promise<SkillEntry[]>;
+  skillInvoke: (sessionId: string, skillId: string, userArgs: string) => Promise<{ skillId: string; name: string }>;
+  skillClear: (sessionId: string) => Promise<void>;
 
   // Claude Session API (3.0)
   claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) => Promise<void>;

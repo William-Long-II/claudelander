@@ -30,6 +30,7 @@ import { resolveClaudeConfig, buildKnowledgeContext } from './claude-config-reso
 import { extractKnowledgeCandidates } from './knowledge/extractor';
 import { detectDomains } from './knowledge/domain-tagger';
 import { findPromotionCandidates, applyDecayPass } from './knowledge/promotion-engine';
+import * as skillRegistry from './skill-registry';
 
 // Global error handlers to catch uncaught exceptions and prevent silent crashes
 process.on('uncaughtException', (error: Error) => {
@@ -382,6 +383,13 @@ function createWindow(): void {
       log.error('[Knowledge] Decay cycle error:', error);
     }
   };
+
+  // Build skill registry on startup
+  try {
+    skillRegistry.buildRegistry();
+  } catch (err) {
+    log.error('[SkillRegistry] Failed to build on startup:', err);
+  }
 
   // Promotion: startup + every 30 minutes
   setTimeout(runPromotionCycle, 10000);
@@ -803,6 +811,79 @@ safeHandle('knowledge:extractFromChat', (userContent: string, assistantContent: 
     created.push(node);
   }
   return created;
+});
+
+// ============================================================================
+// Skill System IPC Handlers
+// ============================================================================
+
+safeHandle('skill:listAll', () => {
+  return skillRegistry.getRegistry();
+});
+
+safeHandle('skill:getContent', (id: string) => {
+  return skillRegistry.getSkillContent(id);
+});
+
+safeHandle('skill:search', (query: string) => {
+  return skillRegistry.searchSkills(query);
+});
+
+safeHandle('skill:refresh', () => {
+  return skillRegistry.buildRegistry();
+});
+
+safeHandle('skill:invoke', async (sessionId: string, skillId: string, userArgs: string) => {
+  const skill = skillRegistry.getSkillById(skillId);
+  if (!skill) throw new Error(`Unknown skill "${skillId}". Type / to see available skills.`);
+
+  const content = skillRegistry.getSkillContent(skillId);
+  if (!content) throw new Error(`Skill file is empty or unreadable: ${skill.path}`);
+  log.info(`[Skill] Invoking ${skillId} (${content.length} chars) in session ${sessionId}`);
+
+  // Build the prompt: wrap skill content as instructions for Claude to execute
+  let prompt: string;
+  if (userArgs.trim()) {
+    prompt = `You are now operating in "${skill.name}" mode from the ${skill.plugin} plugin. Follow the instructions below exactly.\n\n${content}\n\n---\n\nUser request: ${userArgs}`;
+  } else {
+    prompt = `You are now operating in "${skill.name}" mode from the ${skill.plugin} plugin. Follow the instructions below and execute them against the current project.\n\n${content}`;
+  }
+
+  // Resolve config, optionally overriding model from skill metadata
+  const resolvedConfig = resolveClaudeConfig(sessionId);
+  if (skill.model && !resolvedConfig.model) {
+    resolvedConfig.model = skill.model;
+  }
+
+  const sessions = sessionsRepo.getAllSessions();
+  const session = sessions.find(s => s.id === sessionId);
+
+  // Build knowledge context
+  const knowledgeContext = buildKnowledgeContext(sessionId, session?.groupId);
+  const augmentedPrompt = knowledgeContext ? knowledgeContext + prompt : prompt;
+
+  // Check if session exists in manager — resume or start
+  const hasSession = claudeSessionManager.hasSession(sessionId);
+  if (hasSession) {
+    claudeSessionManager.sendMessage(sessionId, augmentedPrompt, resolvedConfig);
+  } else {
+    const cwd = session?.workingDir || '.';
+    claudeSessionManager.startSession(sessionId, cwd, augmentedPrompt, {
+      groupId: session?.groupId,
+      claudeConfig: resolvedConfig,
+      resumeSessionId: session?.claudeSessionId || undefined,
+    });
+  }
+
+  // Persist active skill on the session
+  sessionsRepo.updateSession(sessionId, { activeSkillId: skillId });
+
+  soundManager.playStartSound();
+  return { skillId, name: skill.name };
+});
+
+safeHandle('skill:clear', (sessionId: string) => {
+  sessionsRepo.updateSession(sessionId, { activeSkillId: null });
 });
 
 // Preferences IPC Handlers

@@ -320,6 +320,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   knowledgeExtractFromChat: (userContent: string, assistantContent: string, sessionId: string, groupId?: string) =>
     ipcRenderer.invoke('knowledge:extractFromChat', userContent, assistantContent, sessionId, groupId),
 
+  // Skill System
+  skillListAll: () =>
+    ipcRenderer.invoke('skill:listAll'),
+  skillGetContent: (id: string) =>
+    ipcRenderer.invoke('skill:getContent', id),
+  skillSearch: (query: string) =>
+    ipcRenderer.invoke('skill:search', query),
+  skillRefresh: () =>
+    ipcRenderer.invoke('skill:refresh'),
+  skillInvoke: (sessionId: string, skillId: string, userArgs: string) =>
+    ipcRenderer.invoke('skill:invoke', sessionId, skillId, userArgs),
+  skillClear: (sessionId: string) =>
+    ipcRenderer.invoke('skill:clear', sessionId),
+
   // Claude Session API (3.0)
   claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) =>
     ipcRenderer.invoke('claude:start', sessionId, cwd, prompt, options),

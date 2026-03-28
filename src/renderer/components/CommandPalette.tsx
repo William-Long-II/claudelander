@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Session, SessionTemplate } from '../../shared/types';
+import { Session, SessionTemplate, SkillEntry } from '../../shared/types';
 import './CommandPalette.css';
 
 interface CommandResult {
-  type: 'session' | 'template';
+  type: 'session' | 'template' | 'skill';
   id: string;
   label: string;
   detail?: string;
@@ -14,6 +14,7 @@ interface CommandPaletteProps {
   onClose: () => void;
   onSelectSession: (sessionId: string) => void;
   onSelectTemplate: (template: SessionTemplate) => void;
+  onSelectSkill: (skill: SkillEntry) => void;
   sessions: Session[];
   groups: Array<{ id: string; name: string }>;
 }
@@ -40,17 +41,25 @@ function highlightMatch(text: string, query: string): React.ReactNode {
   );
 }
 
+const SKILL_TYPE_ICONS: Record<string, string> = {
+  command: 'C',
+  role: 'R',
+  skill: 'S',
+};
+
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
   isOpen,
   onClose,
   onSelectSession,
   onSelectTemplate,
+  onSelectSkill,
   sessions,
   groups,
 }) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [templates, setTemplates] = useState<SessionTemplate[]>([]);
+  const [skills, setSkills] = useState<SkillEntry[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -63,58 +72,86 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     return map;
   }, [groups]);
 
-  // Load templates when palette opens
+  // Load templates and skills when palette opens
   useEffect(() => {
     if (isOpen) {
       setQuery('');
       setSelectedIndex(0);
       setTimeout(() => inputRef.current?.focus(), 50);
 
-      // Load templates asynchronously
       window.electronAPI.templatesGetAll()
         .then(result => setTemplates(result))
         .catch(() => setTemplates([]));
+
+      window.electronAPI.skillListAll()
+        .then(result => setSkills(result))
+        .catch(() => setSkills([]));
     }
   }, [isOpen]);
+
+  // Detect if searching for skills with / prefix
+  const isSkillQuery = query.startsWith('/');
+  const effectiveQuery = isSkillQuery ? query.slice(1) : query;
 
   // Build filtered results
   const filteredResults = useMemo((): CommandResult[] => {
     const results: CommandResult[] = [];
 
-    // Sessions
-    const matchingSessions = sessions.filter(s =>
-      !query.trim() || fuzzyMatch(query, s.name) || fuzzyMatch(query, groupNameMap.get(s.groupId) || '')
-    );
-    for (const s of matchingSessions) {
-      results.push({
-        type: 'session',
-        id: s.id,
-        label: s.name,
-        detail: groupNameMap.get(s.groupId) || undefined,
-      });
+    // If query starts with /, only show skills
+    if (!isSkillQuery) {
+      // Sessions
+      const matchingSessions = sessions.filter(s =>
+        !effectiveQuery.trim() || fuzzyMatch(effectiveQuery, s.name) || fuzzyMatch(effectiveQuery, groupNameMap.get(s.groupId) || '')
+      );
+      for (const s of matchingSessions) {
+        results.push({
+          type: 'session',
+          id: s.id,
+          label: s.name,
+          detail: groupNameMap.get(s.groupId) || undefined,
+        });
+      }
+
+      // Templates
+      const matchingTemplates = templates.filter(t =>
+        !effectiveQuery.trim() || fuzzyMatch(effectiveQuery, t.name) || fuzzyMatch(effectiveQuery, t.initialPrompt || '')
+      );
+      for (const t of matchingTemplates) {
+        results.push({
+          type: 'template',
+          id: t.id,
+          label: t.name,
+          detail: t.workingDir || undefined,
+        });
+      }
     }
 
-    // Templates
-    const matchingTemplates = templates.filter(t =>
-      !query.trim() || fuzzyMatch(query, t.name) || fuzzyMatch(query, t.initialPrompt || '')
+    // Skills — always show if query starts with /, or if query matches
+    const matchingSkills = skills.filter(s =>
+      !effectiveQuery.trim() ||
+      fuzzyMatch(effectiveQuery, s.id) ||
+      fuzzyMatch(effectiveQuery, s.name) ||
+      fuzzyMatch(effectiveQuery, s.plugin) ||
+      fuzzyMatch(effectiveQuery, s.description)
     );
-    for (const t of matchingTemplates) {
+    for (const s of matchingSkills) {
       results.push({
-        type: 'template',
-        id: t.id,
-        label: t.name,
-        detail: t.workingDir || undefined,
+        type: 'skill',
+        id: s.id,
+        label: `/${s.id}`,
+        detail: s.description.length > 80 ? s.description.slice(0, 80) + '...' : s.description,
       });
     }
 
     return results;
-  }, [query, sessions, templates, groupNameMap]);
+  }, [effectiveQuery, isSkillQuery, sessions, templates, skills, groupNameMap]);
 
   // Group results by category for rendering
   const groupedResults = useMemo(() => {
     const sessionResults = filteredResults.filter(r => r.type === 'session');
     const templateResults = filteredResults.filter(r => r.type === 'template');
-    return { sessionResults, templateResults };
+    const skillResults = filteredResults.filter(r => r.type === 'skill');
+    return { sessionResults, templateResults, skillResults };
   }, [filteredResults]);
 
   // Clamp selected index when results change
@@ -142,9 +179,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       if (template) {
         onSelectTemplate(template);
       }
+    } else if (result.type === 'skill') {
+      const skill = skills.find(s => s.id === result.id);
+      if (skill) {
+        onSelectSkill(skill);
+      }
     }
     onClose();
-  }, [onSelectSession, onSelectTemplate, onClose, templates]);
+  }, [onSelectSession, onSelectTemplate, onSelectSkill, onClose, templates, skills]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -179,6 +221,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   // Compute flat index offset for each category
   const sessionStartIndex = 0;
   const templateStartIndex = groupedResults.sessionResults.length;
+  const skillStartIndex = templateStartIndex + groupedResults.templateResults.length;
 
   return (
     <div className="command-palette-overlay" onClick={onClose}>
@@ -201,7 +244,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               setQuery(e.target.value);
               setSelectedIndex(0);
             }}
-            placeholder="Search sessions, templates..."
+            placeholder="Search sessions, templates, /skills..."
             autoFocus
           />
         </div>
@@ -213,7 +256,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           )}
 
           {filteredResults.length === 0 && !query.trim() && (
-            <div className="command-palette-empty">Type to search or browse below</div>
+            <div className="command-palette-empty">Type to search or / for skills</div>
           )}
 
           {/* Sessions category */}
@@ -231,7 +274,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   >
                     <span className="command-palette-item-icon session">S</span>
                     <span className="command-palette-item-label">
-                      {highlightMatch(result.label, query)}
+                      {highlightMatch(result.label, effectiveQuery)}
                     </span>
                     {result.detail && (
                       <span className="command-palette-item-detail">{result.detail}</span>
@@ -257,7 +300,36 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   >
                     <span className="command-palette-item-icon template">T</span>
                     <span className="command-palette-item-label">
-                      {highlightMatch(result.label, query)}
+                      {highlightMatch(result.label, effectiveQuery)}
+                    </span>
+                    {result.detail && (
+                      <span className="command-palette-item-detail">{result.detail}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* Skills category */}
+          {groupedResults.skillResults.length > 0 && (
+            <>
+              <div className="command-palette-category">Skills</div>
+              {groupedResults.skillResults.map((result, i) => {
+                const flatIndex = skillStartIndex + i;
+                const skill = skills.find(s => s.id === result.id);
+                return (
+                  <div
+                    key={`skill-${result.id}`}
+                    className={`command-palette-item${flatIndex === selectedIndex ? ' selected' : ''}`}
+                    onClick={() => handleSelect(result)}
+                    onMouseEnter={() => setSelectedIndex(flatIndex)}
+                  >
+                    <span className={`command-palette-item-icon skill ${skill?.type || ''}`}>
+                      {skill ? SKILL_TYPE_ICONS[skill.type] || '/' : '/'}
+                    </span>
+                    <span className="command-palette-item-label">
+                      {highlightMatch(result.label, effectiveQuery)}
                     </span>
                     {result.detail && (
                       <span className="command-palette-item-detail">{result.detail}</span>

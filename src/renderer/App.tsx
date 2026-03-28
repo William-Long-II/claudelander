@@ -17,7 +17,7 @@ import { useSessions } from './store/sessions';
 import { useGroups } from './store/groups';
 import { useSharing } from './store/sharing';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { SessionTemplate } from '../shared/types';
+import { SessionTemplate, SkillEntry } from '../shared/types';
 import { SessionSettingsBar } from './components/chat/SessionSettingsBar';
 import './styles/global.css';
 import './styles/context-menu.css';
@@ -791,6 +791,16 @@ const App: React.FC = () => {
     await createSession(groupId, template.name, cwd, true, template.initialPrompt || undefined);
   }, [groups, getEffectiveWorkingDir, homedir, createSession]);
 
+  // Ref to the active ChatContainer's skill invoke handler, set via callback
+  const skillInvokeRef = useRef<((skillId: string, args: string) => void) | null>(null);
+
+  const handleCommandPaletteSelectSkill = useCallback((skill: SkillEntry) => {
+    if (activeSessionId && skillInvokeRef.current) {
+      // Route through ChatContainer's handler so message + badge are handled
+      skillInvokeRef.current(skill.id, '');
+    }
+  }, [activeSessionId]);
+
   const shortcutHandlers = useMemo(() => ({
     onNewSession: handleKeyboardNewSession,
     onNextSession: handleNextSession,
@@ -1427,7 +1437,13 @@ const App: React.FC = () => {
                 sessionName={session.name}
                 workingDir={session.workingDir}
                 claudeConfig={session.claudeConfig}
+                activeSkillId={session.activeSkillId || null}
                 onConfigChange={(config) => updateSession(session.id, { claudeConfig: config })}
+                onClearSkill={() => {
+                  window.electronAPI.skillClear(session.id);
+                  updateSession(session.id, { activeSkillId: null });
+                }}
+                onSkillInvokeReady={session.id === activeSessionId ? (handler) => { skillInvokeRef.current = handler; } : undefined}
                 scrollToMessageId={session.id === activeSessionId ? scrollToMessageId : null}
                 onScrollComplete={() => setScrollToMessageId(null)}
               />
@@ -1651,6 +1667,7 @@ const App: React.FC = () => {
         onClose={() => setCommandPaletteOpen(false)}
         onSelectSession={handleCommandPaletteSelectSession}
         onSelectTemplate={handleCommandPaletteSelectTemplate}
+        onSelectSkill={handleCommandPaletteSelectSkill}
         sessions={sessions}
         groups={groups}
       />

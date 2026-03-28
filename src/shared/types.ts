@@ -22,6 +22,7 @@ export interface Session {
   lastActivityAt: Date;
   claudeConfig?: ClaudeConfig;
   claudeSessionId?: string | null;
+  activeSkillId?: string | null;
 }
 
 export interface Group {
@@ -490,4 +491,21 @@ export interface SessionStatus {
   filesBeingEdited?: string[];
   commandRunning?: string;
   lastActivity: Date;
+}
+
+// =============================================================================
+// Skill System Types (3.0)
+// =============================================================================
+
+export type SkillType = 'command' | 'role' | 'skill';
+
+export interface SkillEntry {
+  id: string;
+  name: string;
+  plugin: string;
+  description: string;
+  type: SkillType;
+  path: string;
+  model?: string;
+  tools?: string[];
 }

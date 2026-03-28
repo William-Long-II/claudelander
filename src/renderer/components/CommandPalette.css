@@ -135,6 +135,21 @@
   color: #98c379;
 }
 
+.command-palette-item-icon.skill {
+  background: #2d4d3a;
+  color: #98c379;
+}
+
+.command-palette-item-icon.skill.command {
+  background: #2d3a4d;
+  color: #61afef;
+}
+
+.command-palette-item-icon.skill.role {
+  background: #3d2d4d;
+  color: #c678dd;
+}
+
 .command-palette-item-label {
   flex: 1;
   font-size: 13px;

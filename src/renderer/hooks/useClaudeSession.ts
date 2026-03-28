@@ -262,11 +262,9 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
     };
   }, [sessionId]);
 
-  const sendMessage = useCallback(async (content: string) => {
+  // Add a user message to the chat (visible + persisted) without sending to Claude
+  const addUserMessage = useCallback((content: string) => {
     if (!sessionId || !content.trim()) return;
-    lastUserContentRef.current = content;
-
-    // Add user message
     const userMsg: ChatMessageData = {
       id: `msg-${Date.now()}`,
       role: 'user',
@@ -275,8 +273,6 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
       createdAt: new Date(),
     };
     setMessages(prev => [...prev, userMsg]);
-
-    // Save to DB
     window.electronAPI.chatCreateMessage({
       id: userMsg.id,
       sessionId,
@@ -285,6 +281,14 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
       messageType: 'text',
       branchId: currentBranchIdRef.current || undefined,
     });
+  }, [sessionId]);
+
+  const sendMessage = useCallback(async (content: string) => {
+    if (!sessionId || !content.trim()) return;
+    lastUserContentRef.current = content;
+
+    // Add user message
+    addUserMessage(content);
 
     // Send to Claude — check if session exists in memory (survives DB reload but not app restart)
     const hasSession = await window.electronAPI.claudeHasSession(sessionId);
@@ -329,6 +333,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
     status,
     currentStreamingMessage,
     sendMessage,
+    addUserMessage,
     stopSession,
     currentBranchId,
     switchBranch,

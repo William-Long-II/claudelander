@@ -140,6 +140,11 @@ function initializeTables(database: Database.Database): void {
     database.exec("ALTER TABLE sessions ADD COLUMN claude_session_id TEXT");
   }
 
+  // Migration: Add active_skill_id column to sessions for skill tracking
+  if (!sessionColumns.some(col => col.name === 'active_skill_id')) {
+    database.exec("ALTER TABLE sessions ADD COLUMN active_skill_id TEXT");
+  }
+
   // Migration: Add claude_config column to groups if it doesn't exist
   if (!columns.some(col => col.name === 'claude_config')) {
     database.exec("ALTER TABLE groups ADD COLUMN claude_config TEXT");
