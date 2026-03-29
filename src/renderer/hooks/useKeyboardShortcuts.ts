@@ -15,6 +15,8 @@ interface ShortcutHandlers {
   onExpand?: () => void;
   onSelect?: () => void;
   onCodeSearch?: () => void;
+  onChatSearch?: () => void;
+  onCommandPalette?: () => void;
 }
 
 export function useKeyboardShortcuts(handlers: ShortcutHandlers) {
@@ -88,6 +90,18 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers) {
     if (isMod && e.shiftKey && key === 'f') {
       e.preventDefault();
       handlers.onCodeSearch?.();
+    }
+
+    // Ctrl+Shift+H = Chat history search
+    if (isMod && e.shiftKey && key === 'h') {
+      e.preventDefault();
+      handlers.onChatSearch?.();
+    }
+
+    // Ctrl+K = Command palette
+    if (isMod && !e.shiftKey && key === 'k') {
+      e.preventDefault();
+      handlers.onCommandPalette?.();
     }
   }, [handlers]);
 

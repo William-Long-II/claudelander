@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ApiServerStatus, PairedDevice, PairingCode, RelayConnectionStatus } from '../../shared/types';
+import { SessionSettingsBar } from './chat/SessionSettingsBar';
+import { ClaudeConfig } from '../../shared/types';
+import { notifyChatPreferencesChanged } from '../hooks/useChatPreferences';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -7,7 +10,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  type SettingsTab = 'general' | 'appearance' | 'terminal' | 'sound' | 'integrations' | 'mobile';
+  type SettingsTab = 'general' | 'appearance' | 'sound' | 'integrations' | 'mobile' | 'claude';
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
 
   // Mobile API state
@@ -48,6 +51,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [showSplash, setShowSplash] = useState(true);
   const [splashDuration, setSplashDuration] = useState(2.5);
 
+  // Chat settings state
+  const [chatFontSize, setChatFontSize] = useState(14);
+  const [showThinking, setShowThinking] = useState(true);
+  const [sendShortcut, setSendShortcut] = useState('ctrl+enter');
+
   // Terminal settings state
   const [fontSize, setFontSize] = useState(14);
   const [webglRenderer, setWebglRenderer] = useState(true);
@@ -58,6 +66,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   // Integrations state
   const [githubUser, setGithubUser] = useState<{ username: string } | null>(null);
   const [githubLoading, setGithubLoading] = useState(false);
+
+  // Claude defaults state
+  const [claudeDefaults, setClaudeDefaults] = useState<ClaudeConfig>({});
 
   // Error state for surfacing errors to users
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +109,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           fontSizePref,
           webglRendererPref,
           enableNotificationsPref,
+          chatFontSizePref,
+          showThinkingPref,
+          sendShortcutPref,
         ] = await Promise.all([
           window.electronAPI.getPreference('notificationSound'),
           window.electronAPI.getPreference('soundVolume'),
@@ -114,6 +128,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           window.electronAPI.getPreference('fontSize'),
           window.electronAPI.getPreference('webglRenderer'),
           window.electronAPI.getPreference('enableNotifications'),
+          window.electronAPI.getPreference('chatFontSize'),
+          window.electronAPI.getPreference('showThinking'),
+          window.electronAPI.getPreference('sendShortcut'),
         ]);
 
         setSoundEnabled(soundEnabledPref !== 'false');
@@ -131,6 +148,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         setFontSize(fontSizePref ? parseInt(fontSizePref, 10) : 14);
         setWebglRenderer(webglRendererPref === 'true');
         setEnableNotifications(enableNotificationsPref !== 'false');
+        setChatFontSize(chatFontSizePref ? parseInt(chatFontSizePref, 10) : 14);
+        setShowThinking(showThinkingPref !== 'false');
+        setSendShortcut(sendShortcutPref || 'ctrl+enter');
 
         // Load GitHub user status
         try {
@@ -158,6 +178,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     };
 
     loadState();
+  }, [isOpen]);
+
+  // Load claude defaults
+  useEffect(() => {
+    if (!isOpen) return;
+    window.electronAPI.getPreference('claude.defaultConfig').then(raw => {
+      if (raw) {
+        try { setClaudeDefaults(JSON.parse(raw)); } catch {}
+      }
+    });
   }, [isOpen]);
 
   // Listen for GitHub auth changes
@@ -377,6 +407,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     await window.electronAPI.setPreference('splashDuration', duration.toString());
   }, []);
 
+  // Chat setting handlers
+  const handleChatFontSizeChange = useCallback(async (size: number) => {
+    setChatFontSize(size);
+    await window.electronAPI.setPreference('chatFontSize', size.toString());
+    notifyChatPreferencesChanged();
+  }, []);
+
+  const handleShowThinkingChange = useCallback(async (enabled: boolean) => {
+    setShowThinking(enabled);
+    await window.electronAPI.setPreference('showThinking', enabled.toString());
+    notifyChatPreferencesChanged();
+  }, []);
+
+  const handleSendShortcutChange = useCallback(async (value: string) => {
+    setSendShortcut(value);
+    await window.electronAPI.setPreference('sendShortcut', value);
+    notifyChatPreferencesChanged();
+  }, []);
+
   // Terminal setting handlers
   const handleFontSizeChange = useCallback(async (size: number) => {
     setFontSize(size);
@@ -392,6 +441,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     setEnableNotifications(enabled);
     await window.electronAPI.setPreference('enableNotifications', enabled.toString());
   }, []);
+
+  // Claude defaults handler
+  const handleClaudeDefaultsChange = (config: ClaudeConfig) => {
+    setClaudeDefaults(config);
+    window.electronAPI.setPreference('claude.defaultConfig', JSON.stringify(config));
+  };
 
   // Integrations handlers
   const handleGitHubLogin = useCallback(async () => {
@@ -474,12 +529,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               Appearance
             </button>
             <button
-              className={`settings-nav-item ${activeTab === 'terminal' ? 'active' : ''}`}
-              onClick={() => setActiveTab('terminal')}
-            >
-              Terminal
-            </button>
-            <button
               className={`settings-nav-item ${activeTab === 'mobile' ? 'active' : ''}`}
               onClick={() => setActiveTab('mobile')}
             >
@@ -497,6 +546,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             >
               Integrations
             </button>
+            <button
+              className={`settings-nav-item ${activeTab === 'claude' ? 'active' : ''}`}
+              onClick={() => setActiveTab('claude')}
+            >
+              Claude
+            </button>
           </nav>
 
           <div className="settings-content">
@@ -512,34 +567,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                 <div className="settings-group">
                   <h4>Sessions</h4>
-                  <div className="settings-row">
-                    <label htmlFor="auto-launch-claude">Auto-launch Claude:</label>
-                    <input
-                      id="auto-launch-claude"
-                      type="checkbox"
-                      checked={autoLaunchClaude}
-                      onChange={e => handleAutoLaunchClaudeChange(e.target.checked)}
-                    />
-                    <span className="settings-hint">Automatically start Claude when creating new sessions</span>
-                  </div>
-
-                  <div className="settings-row">
-                    <label htmlFor="custom-shell-path">Custom Shell Path:</label>
-                    <input
-                      id="custom-shell-path"
-                      type="text"
-                      className="settings-text-input"
-                      value={customShellPath}
-                      onChange={e => handleCustomShellPathChange(e.target.value)}
-                      placeholder="Auto-detect"
-                    />
-                    <span className="settings-hint">
-                      {window.electronAPI.platform === 'win32'
-                        ? 'e.g., C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
-                        : 'e.g., /bin/bash, /bin/zsh'}
-                    </span>
-                  </div>
-
                   <div className="settings-row">
                     <label htmlFor="preferred-editor">Preferred Editor:</label>
                     <select
@@ -606,38 +633,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     <span className="range-value">{splashDuration}s</span>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {activeTab === 'terminal' && (
-              <div className="settings-section">
-                <h3>Terminal</h3>
 
                 <div className="settings-group">
-                  <h4>Display</h4>
+                  <h4>Chat</h4>
                   <div className="settings-row">
-                    <label htmlFor="font-size">Font Size:</label>
+                    <label htmlFor="chat-font-size">Chat Font Size:</label>
                     <input
                       type="range"
-                      id="font-size"
+                      id="chat-font-size"
                       min="10"
                       max="24"
                       step="1"
-                      value={fontSize}
-                      onChange={e => handleFontSizeChange(parseInt(e.target.value, 10))}
+                      value={chatFontSize}
+                      onChange={e => handleChatFontSizeChange(parseInt(e.target.value, 10))}
                     />
-                    <span className="range-value">{fontSize}px</span>
+                    <span className="range-value">{chatFontSize}px</span>
                   </div>
 
                   <div className="settings-row">
-                    <label htmlFor="webgl-renderer">Enable WebGL Rendering:</label>
+                    <label htmlFor="show-thinking">Show Thinking Blocks:</label>
                     <input
-                      id="webgl-renderer"
+                      id="show-thinking"
                       type="checkbox"
-                      checked={webglRenderer}
-                      onChange={e => handleWebglRendererChange(e.target.checked)}
+                      checked={showThinking}
+                      onChange={e => handleShowThinkingChange(e.target.checked)}
                     />
-                    <span className="settings-hint">Use GPU acceleration for terminal (recommended)</span>
+                    <span className="settings-hint">Show Claude's thinking process in chat</span>
+                  </div>
+
+                  <div className="settings-row">
+                    <label htmlFor="send-shortcut">Send Shortcut:</label>
+                    <select
+                      id="send-shortcut"
+                      className="settings-select"
+                      value={sendShortcut}
+                      onChange={e => handleSendShortcutChange(e.target.value)}
+                    >
+                      <option value="ctrl+enter">Ctrl+Enter</option>
+                      <option value="enter">Enter (Shift+Enter for newline)</option>
+                    </select>
                   </div>
                 </div>
               </div>
@@ -995,6 +1029,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     </div>
                   </>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'claude' && (
+              <div className="settings-section">
+                <h3>Claude Defaults</h3>
+                <p className="settings-hint" style={{ marginBottom: '12px' }}>
+                  Default settings for new sessions. Groups and individual sessions can override these.
+                </p>
+                <SessionSettingsBar
+                  config={claudeDefaults}
+                  onChange={handleClaudeDefaultsChange}
+                />
               </div>
             )}
           </div>

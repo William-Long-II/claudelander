@@ -2,6 +2,8 @@ import Database from 'better-sqlite3';
 import * as path from 'path';
 import { app } from 'electron';
 import log from 'electron-log';
+import { initKnowledgeGraphTables } from './database-knowledge';
+import { migrateMemoriesToKnowledge } from './migration/memory-to-knowledge';
 
 let db: Database.Database | null = null;
 let sqliteVecAvailable = false;
@@ -50,6 +52,34 @@ export function getDatabase(): Database.Database {
 
   initializeTables(db);
   initializeCodeSearchTables(db);
+  initKnowledgeGraphTables(db);
+
+  // Run one-time memory-to-knowledge migration if needed
+  try {
+    const knowledgeCount = db.prepare('SELECT COUNT(*) as count FROM knowledge_nodes').get() as { count: number };
+    const memoriesTableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='memories'").get();
+
+    if (knowledgeCount.count === 0 && memoriesTableExists) {
+      const memoryCount = db.prepare('SELECT COUNT(*) as count FROM memories').get() as { count: number };
+      if (memoryCount.count > 0) {
+        log.info('[Database] Migrating memories to knowledge nodes...');
+        const result = migrateMemoriesToKnowledge();
+        log.info(`[Database] Migration complete: ${result.migrated} nodes created, ${result.skipped} skipped`);
+      }
+    }
+  } catch (error) {
+    log.error('[Database] Memory migration check failed:', error);
+  }
+
+  // Reset any non-idle session states from terminal era
+  try {
+    const result = db.prepare("UPDATE sessions SET state = 'idle' WHERE state NOT IN ('idle')").run();
+    if (result.changes > 0) {
+      log.info(`[Database] Reset ${result.changes} non-idle sessions to idle (3.0 migration)`);
+    }
+  } catch (error) {
+    log.error('[Database] Session state reset failed:', error);
+  }
 
   return db;
 }
@@ -97,6 +127,27 @@ function initializeTables(database: Database.Database): void {
   // Migration: Add collapsed column to groups if it doesn't exist
   if (!columns.some(col => col.name === 'collapsed')) {
     database.exec("ALTER TABLE groups ADD COLUMN collapsed INTEGER DEFAULT 0");
+  }
+
+  // Migration: Add claude_config column to sessions if it doesn't exist
+  const sessionColumns = database.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
+  if (!sessionColumns.some(col => col.name === 'claude_config')) {
+    database.exec("ALTER TABLE sessions ADD COLUMN claude_config TEXT");
+  }
+
+  // Migration: Add claude_session_id column to sessions for resume across app restarts
+  if (!sessionColumns.some(col => col.name === 'claude_session_id')) {
+    database.exec("ALTER TABLE sessions ADD COLUMN claude_session_id TEXT");
+  }
+
+  // Migration: Add active_skill_id column to sessions for skill tracking
+  if (!sessionColumns.some(col => col.name === 'active_skill_id')) {
+    database.exec("ALTER TABLE sessions ADD COLUMN active_skill_id TEXT");
+  }
+
+  // Migration: Add claude_config column to groups if it doesn't exist
+  if (!columns.some(col => col.name === 'claude_config')) {
+    database.exec("ALTER TABLE groups ADD COLUMN claude_config TEXT");
   }
 
   // Migration: Create memories table if it doesn't exist

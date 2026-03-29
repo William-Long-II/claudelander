@@ -8,39 +8,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   homedir,
 
-  // PTY operations
-  createSession: (id: string, cwd: string, launchClaude: boolean = false) =>
-    ipcRenderer.invoke('pty:create', id, cwd, launchClaude),
-  writeToSession: (id: string, data: string) =>
-    ipcRenderer.send('pty:write', id, data),
-  resizeSession: (id: string, cols: number, rows: number) =>
-    ipcRenderer.send('pty:resize', id, cols, rows),
-  killSession: (id: string) =>
-    ipcRenderer.send('pty:kill', id),
-
-  // PTY events
-  onPtyData: (callback: (id: string, data: string) => void) => {
-    const listener = (_: Electron.IpcRendererEvent, id: string, data: string) => callback(id, data);
-    ipcRenderer.on('pty:data', listener);
-    return () => {
-      ipcRenderer.removeListener('pty:data', listener);
-    };
-  },
-  onPtyExit: (callback: (id: string, exitCode: number) => void) => {
-    const listener = (_: Electron.IpcRendererEvent, id: string, exitCode: number) => callback(id, exitCode);
-    ipcRenderer.on('pty:exit', listener);
-    return () => {
-      ipcRenderer.removeListener('pty:exit', listener);
-    };
-  },
-  onStateChange: (callback: (event: { sessionId: string; state: string; event: string; timestamp: number }) => void) => {
-    const listener = (_: Electron.IpcRendererEvent, event: any) => callback(event);
-    ipcRenderer.on('state:change', listener);
-    return () => {
-      ipcRenderer.removeListener('state:change', listener);
-    };
-  },
-
   // Menu events
   onMenuNewSession: (callback: () => void) => {
     ipcRenderer.on('menu:new-session', callback);
@@ -127,6 +94,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('memory:extracted', listener);
     return () => ipcRenderer.removeListener('memory:extracted', listener);
   },
+
+  // Chat Messages
+  chatGetMessages: (sessionId: string, limit?: number) =>
+    ipcRenderer.invoke('chat:getMessages', sessionId, limit),
+  chatGetMessagesByBranch: (branchId: string, limit?: number) =>
+    ipcRenderer.invoke('chat:getMessagesByBranch', branchId, limit),
+  chatCreateMessage: (input: any) =>
+    ipcRenderer.invoke('chat:createMessage', input),
+  chatSearchMessages: (query: string, sessionId?: string, limit?: number) =>
+    ipcRenderer.invoke('chat:searchMessages', query, sessionId, limit),
 
   // Preferences
   getPreference: (key: string): Promise<string | null> =>
@@ -304,4 +281,92 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   getEditorOptions: (): Promise<{ value: string; label: string }[]> =>
     ipcRenderer.invoke('editor:getOptions'),
+
+  // Session Templates
+  templatesGetAll: (): Promise<any[]> =>
+    ipcRenderer.invoke('templates:getAll'),
+  templatesCreate: (input: any): Promise<any> =>
+    ipcRenderer.invoke('templates:create', input),
+  templatesDelete: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('templates:delete', id),
+
+  // Conversation Branches
+  branchesGetBySession: (sessionId: string): Promise<any[]> =>
+    ipcRenderer.invoke('branches:getBySession', sessionId),
+  branchesCreate: (input: any): Promise<any> =>
+    ipcRenderer.invoke('branches:create', input),
+  branchesDelete: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('branches:delete', id),
+
+  // Knowledge Graph
+  knowledgeCreate: (content: string, options?: { tier?: number; domains?: string[]; tags?: string[]; scopeSessionId?: string; scopeGroupId?: string }) =>
+    ipcRenderer.invoke('knowledge:create', content, options),
+  knowledgeSearch: (query: string, limit?: number) =>
+    ipcRenderer.invoke('knowledge:search', query, limit),
+  knowledgeGetByTier: (tier: number, limit?: number) =>
+    ipcRenderer.invoke('knowledge:getByTier', tier, limit),
+  knowledgeGetByDomain: (domain: string, limit?: number) =>
+    ipcRenderer.invoke('knowledge:getByDomain', domain, limit),
+  knowledgeGetRelated: (nodeId: string) =>
+    ipcRenderer.invoke('knowledge:getRelated', nodeId),
+  knowledgeGetNode: (id: string) =>
+    ipcRenderer.invoke('knowledge:getNode', id),
+  knowledgePromote: (id: string, toTier: number, evidence?: string[]) =>
+    ipcRenderer.invoke('knowledge:promote', id, toTier, evidence),
+  knowledgePin: (id: string, pinned: boolean) =>
+    ipcRenderer.invoke('knowledge:pin', id, pinned),
+  knowledgeDelete: (id: string) =>
+    ipcRenderer.invoke('knowledge:delete', id),
+  knowledgeExtractFromChat: (userContent: string, assistantContent: string, sessionId: string, groupId?: string) =>
+    ipcRenderer.invoke('knowledge:extractFromChat', userContent, assistantContent, sessionId, groupId),
+
+  // Skill System
+  skillListAll: () =>
+    ipcRenderer.invoke('skill:listAll'),
+  skillGetContent: (id: string) =>
+    ipcRenderer.invoke('skill:getContent', id),
+  skillSearch: (query: string) =>
+    ipcRenderer.invoke('skill:search', query),
+  skillRefresh: () =>
+    ipcRenderer.invoke('skill:refresh'),
+  skillInvoke: (sessionId: string, skillId: string, userArgs: string) =>
+    ipcRenderer.invoke('skill:invoke', sessionId, skillId, userArgs),
+  skillClear: (sessionId: string) =>
+    ipcRenderer.invoke('skill:clear', sessionId),
+
+  // Claude Session API (3.0)
+  claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) =>
+    ipcRenderer.invoke('claude:start', sessionId, cwd, prompt, options),
+  claudeSend: (sessionId: string, prompt: string) =>
+    ipcRenderer.invoke('claude:send', sessionId, prompt),
+  claudeKill: (sessionId: string) =>
+    ipcRenderer.invoke('claude:kill', sessionId),
+  claudeGetStatus: (sessionId: string) =>
+    ipcRenderer.invoke('claude:status', sessionId),
+  claudeIsRunning: (sessionId: string) =>
+    ipcRenderer.invoke('claude:isRunning', sessionId),
+  claudeHasSession: (sessionId: string) =>
+    ipcRenderer.invoke('claude:hasSession', sessionId),
+  claudeGetResolvedConfig: (sessionId: string) =>
+    ipcRenderer.invoke('claude:getResolvedConfig', sessionId),
+  onClaudeEvent: (callback: (sessionId: string, event: any) => void) => {
+    const handler = (_: any, sessionId: string, event: any) => callback(sessionId, event);
+    ipcRenderer.on('claude:event', handler);
+    return () => ipcRenderer.removeListener('claude:event', handler);
+  },
+  onClaudeStateChange: (callback: (sessionId: string, status: any) => void) => {
+    const handler = (_: any, sessionId: string, status: any) => callback(sessionId, status);
+    ipcRenderer.on('claude:stateChange', handler);
+    return () => ipcRenderer.removeListener('claude:stateChange', handler);
+  },
+  onClaudeEnded: (callback: (sessionId: string) => void) => {
+    const handler = (_: any, sessionId: string) => callback(sessionId);
+    ipcRenderer.on('claude:ended', handler);
+    return () => ipcRenderer.removeListener('claude:ended', handler);
+  },
+  onClaudeError: (callback: (sessionId: string, error: string) => void) => {
+    const handler = (_: any, sessionId: string, error: string) => callback(sessionId, error);
+    ipcRenderer.on('claude:error', handler);
+    return () => ipcRenderer.removeListener('claude:error', handler);
+  },
 });

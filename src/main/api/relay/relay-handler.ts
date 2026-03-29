@@ -9,7 +9,7 @@ import log from 'electron-log';
 import { hostname } from 'os';
 import { PairingManager } from '../pairing/pairing-manager';
 import { getRelayConnection } from './relay-connection';
-import { ptyManager } from '../../pty-manager';
+import { claudeSessionManager } from '../../claude-session-manager';
 import * as sessionsRepo from '../../repositories/sessions';
 import * as groupsRepo from '../../repositories/groups';
 import { app } from 'electron';
@@ -237,14 +237,8 @@ export class RelayHandler {
    * Get terminal scrollback buffer
    */
   private getTerminalBuffer(sessionId: string): { status: number; data?: unknown; error?: string } {
-    const session = ptyManager.getSession(sessionId);
-
-    if (!session) {
-      return { status: 404, error: 'Session not found' };
-    }
-
-    const buffer = ptyManager.getBuffer(sessionId);
-    return { status: 200, data: { buffer } };
+    // Terminal buffer is no longer available in chat-first mode
+    return { status: 410, error: 'Terminal buffer not available in chat mode' };
   }
 
   /**
@@ -279,28 +273,20 @@ export class RelayHandler {
    * Send input to terminal
    */
   private sendTerminalInput(sessionId: string, data: string): { status: number; data?: unknown; error?: string } {
-    const session = ptyManager.getSession(sessionId);
-
-    if (!session) {
-      return { status: 404, error: 'Session not found' };
+    // In chat mode, use Claude session manager instead
+    if (claudeSessionManager.isSessionRunning(sessionId)) {
+      return { status: 409, error: 'Session is currently processing' };
     }
-
-    ptyManager.write(sessionId, data);
+    claudeSessionManager.sendMessage(sessionId, data);
     return { status: 200, data: { sent: true } };
   }
 
   /**
    * Resize terminal
    */
-  private resizeTerminal(sessionId: string, cols: number, rows: number): { status: number; data?: unknown; error?: string } {
-    const session = ptyManager.getSession(sessionId);
-
-    if (!session) {
-      return { status: 404, error: 'Session not found' };
-    }
-
-    ptyManager.resize(sessionId, cols, rows);
-    return { status: 200, data: { resized: true } };
+  private resizeTerminal(_sessionId: string, _cols: number, _rows: number): { status: number; data?: unknown; error?: string } {
+    // Resize not applicable in chat mode
+    return { status: 410, error: 'Terminal resize not available in chat mode' };
   }
 
   /**

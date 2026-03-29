@@ -1,5 +1,15 @@
 export type SessionState = 'idle' | 'working' | 'waiting' | 'error' | 'stopped';
 
+export interface ClaudeConfig {
+  model?: string;
+  effort?: string;
+  permissionMode?: string;
+  maxBudgetUsd?: number;
+  systemPrompt?: string;
+  allowedTools?: string[];
+  disallowedTools?: string[];
+}
+
 export interface Session {
   id: string;
   groupId: string;
@@ -10,6 +20,9 @@ export interface Session {
   order: number;
   createdAt: Date;
   lastActivityAt: Date;
+  claudeConfig?: ClaudeConfig;
+  claudeSessionId?: string | null;
+  activeSkillId?: string | null;
 }
 
 export interface Group {
@@ -21,6 +34,7 @@ export interface Group {
   createdAt: Date;
   parentId: string | null;
   collapsed: boolean;
+  claudeConfig?: ClaudeConfig;
 }
 
 export interface AppState {
@@ -284,4 +298,214 @@ export interface IndexProgress {
   filesIndexed: number;
   currentFile: string | null;
   error: string | null;
+}
+
+// =============================================================================
+// Knowledge Graph Types (3.0)
+// =============================================================================
+
+export type KnowledgeTier = 1 | 2 | 3;
+export type KnowledgeSource = 'auto-extracted' | 'user-created' | 'promoted';
+export type KnowledgeRelationship = 'derived_from' | 'supports' | 'contradicts' | 'relates_to' | 'applied_in' | 'same_domain';
+
+export interface KnowledgeNode {
+  id: string;
+  tier: KnowledgeTier;
+  content: string;
+  confidence: number;
+  source: KnowledgeSource;
+  scopeSessionId: string | null;
+  scopeGroupId: string | null;
+  domains: string[];
+  tags: string[];
+  createdAt: Date;
+  lastReinforcedAt: Date;
+}
+
+export interface KnowledgeEdge {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  relationship: KnowledgeRelationship;
+  weight: number;
+  createdAt: Date;
+}
+
+export interface KnowledgePromotion {
+  id: string;
+  nodeId: string;
+  fromTier: KnowledgeTier;
+  toTier: KnowledgeTier;
+  trigger: string;
+  evidence: string[];
+  promotedAt: Date;
+}
+
+export interface KnowledgeNodeCreateInput {
+  id: string;
+  tier: KnowledgeTier;
+  content: string;
+  source: KnowledgeSource;
+  confidence?: number;
+  scopeSessionId?: string | null;
+  scopeGroupId?: string | null;
+  domains?: string[];
+  tags?: string[];
+}
+
+export interface KnowledgeNodeUpdateInput {
+  content?: string;
+  tier?: KnowledgeTier;
+  confidence?: number;
+  domains?: string[];
+  tags?: string[];
+}
+
+export interface KnowledgeEdgeCreateInput {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  relationship: KnowledgeRelationship;
+  weight?: number;
+}
+
+// =============================================================================
+// Chat Message Types (3.0)
+// =============================================================================
+
+export type ChatMessageRole = 'user' | 'assistant' | 'system' | 'error';
+export type ChatMessageType = 'text' | 'tool_use' | 'tool_result' | 'thinking' | 'system';
+
+export interface ChatMessage {
+  id: string;
+  sessionId: string;
+  role: ChatMessageRole;
+  content: string;
+  messageType: ChatMessageType;
+  toolCalls: any[] | null;
+  toolResults: any[] | null;
+  thinking: string | null;
+  branchId: string | null;
+  parentMessageId: string | null;
+  claudeSessionId: string | null;
+  createdAt: Date;
+}
+
+export interface ChatMessageCreateInput {
+  id: string;
+  sessionId: string;
+  role: ChatMessageRole;
+  content: string;
+  messageType?: ChatMessageType;
+  toolCalls?: any[];
+  toolResults?: any[];
+  thinking?: string;
+  branchId?: string;
+  parentMessageId?: string;
+  claudeSessionId?: string;
+}
+
+// =============================================================================
+// Claude Code JSON Streaming Types (3.0)
+// =============================================================================
+
+export type ClaudeEventType =
+  | 'message_start'
+  | 'content_block_start'
+  | 'content_block_delta'
+  | 'content_block_stop'
+  | 'message_delta'
+  | 'message_stop'
+  | 'ping'
+  | 'error';
+
+export interface ClaudeJsonEvent {
+  type: ClaudeEventType;
+  message?: any;
+  index?: number;
+  content_block?: any;
+  delta?: any;
+  error?: any;
+  [key: string]: any;
+}
+
+export interface ClaudeToolUse {
+  id: string;
+  name: string;
+  input: Record<string, any>;
+}
+
+export interface ClaudeToolResult {
+  toolUseId: string;
+  content: string;
+  isError?: boolean;
+}
+
+// =============================================================================
+// Session Template Types (3.0)
+// =============================================================================
+
+export interface SessionTemplate {
+  id: string;
+  name: string;
+  workingDir: string | null;
+  initialPrompt: string | null;
+  knowledgeContext: string[];
+  groupId: string | null;
+  createdAt: Date;
+  updatedAt: Date | null;
+}
+
+export interface SessionTemplateCreateInput {
+  id: string;
+  name: string;
+  workingDir?: string;
+  initialPrompt?: string;
+  knowledgeContext?: string[];
+  groupId?: string;
+}
+
+// =============================================================================
+// Conversation Branching Types (3.0)
+// =============================================================================
+
+export interface ConversationBranch {
+  id: string;
+  sessionId: string;
+  parentBranchId: string | null;
+  forkMessageId: string;
+  name: string | null;
+  createdAt: Date;
+}
+
+// =============================================================================
+// Session State Updates (3.0)
+// =============================================================================
+
+export type SessionState3 = 'idle' | 'thinking' | 'tool_executing' | 'streaming' | 'error';
+
+export interface SessionStatus {
+  state: SessionState3;
+  description: string;
+  currentTool?: string;
+  filesBeingEdited?: string[];
+  commandRunning?: string;
+  lastActivity: Date;
+}
+
+// =============================================================================
+// Skill System Types (3.0)
+// =============================================================================
+
+export type SkillType = 'command' | 'role' | 'skill';
+
+export interface SkillEntry {
+  id: string;
+  name: string;
+  plugin: string;
+  description: string;
+  type: SkillType;
+  path: string;
+  model?: string;
+  tools?: string[];
 }

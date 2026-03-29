@@ -16,8 +16,9 @@ import { createSessionsRouter } from './routes/sessions';
 import { createGroupsRouter } from './routes/groups';
 import { createSystemRouter } from './routes/system';
 import { createPairingRouter } from './routes/pairing';
-import { createTerminalRouter } from './routes/terminal';
+import { createChatRouter } from './routes/chat';
 import { createMemoriesRouter } from './routes/memories';
+import { createKnowledgeRouter } from './routes/knowledge';
 import { createHooksRouter } from './routes/hooks';
 import { createCodeSearchRouter } from './routes/code-search';
 
@@ -137,7 +138,11 @@ export async function createHttpServer(config: HttpServerConfig): Promise<HttpSe
   app.use('/api/v1/pairing', pairingLimiter, createPairingRouter(config.pairingManager));
 
   // Memory routes for MCP server (localhost-only, no device auth needed)
+  // Kept for backward compatibility during transition
   app.use('/api/v1/memories', generalLimiter, createMemoriesRouter());
+
+  // Knowledge routes for MCP server (localhost-only, no device auth needed)
+  app.use('/api/v1/knowledge', generalLimiter, createKnowledgeRouter());
 
   // Hook routes for Claude Code hooks (localhost-only, no device auth needed)
   app.use('/api/v1/hooks', generalLimiter, createHooksRouter());
@@ -150,7 +155,7 @@ export async function createHttpServer(config: HttpServerConfig): Promise<HttpSe
   app.use('/api/v1/sessions', generalLimiter, authMiddleware, createSessionsRouter());
   app.use('/api/v1/groups', generalLimiter, authMiddleware, createGroupsRouter());
   app.use('/api/v1/system', generalLimiter, authMiddleware, createSystemRouter());
-  app.use('/api/v1/terminal', generalLimiter, authMiddleware, createTerminalRouter());
+  app.use('/api/v1/chat', generalLimiter, authMiddleware, createChatRouter());
 
   // Error handling middleware
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

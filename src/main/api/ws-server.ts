@@ -9,7 +9,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { URL } from 'url';
 import log from 'electron-log';
 import { PairingManager, PairedDevice } from './pairing/pairing-manager';
-import { ptyManager } from '../pty-manager';
+import { claudeSessionManager } from '../claude-session-manager';
 
 export interface WsMessage {
   type: string;
@@ -102,8 +102,8 @@ export function createWsServer(httpServer: HttpServer, pairingManager: PairingMa
     });
   });
 
-  // Set up PTY data forwarding
-  setupPtyForwarding(clients);
+  // Set up chat event forwarding for Claude session manager
+  setupChatForwarding(clients);
 
   return {
     broadcast(message: WsMessage): void {
@@ -184,26 +184,30 @@ function handleClientMessage(ws: WebSocket, message: WsMessage, clientInfo: Clie
       break;
     }
 
-    case 'terminal:input': {
-      if (!clientInfo.device.canControl) {
+    case 'chat:subscribe': {
+      const sessionId = message.sessionId;
+      if (sessionId) {
+        clientInfo.subscribedSessions.add(sessionId);
+        log.debug(`[WsServer] Client subscribed to chat session: ${sessionId}`);
         sendMessage(ws, {
-          type: 'error',
-          payload: { message: 'Control permission required' },
+          type: 'chat:subscribed',
+          sessionId,
           timestamp: Date.now(),
         });
-        return;
-      }
-
-      const sessionId = message.sessionId;
-      const data = (message.payload as { data?: string })?.data;
-
-      if (sessionId && data && ptyManager.getSession(sessionId)) {
-        ptyManager.write(sessionId, data);
       }
       break;
     }
 
-    case 'terminal:resize': {
+    case 'chat:unsubscribe': {
+      const sessionId = message.sessionId;
+      if (sessionId) {
+        clientInfo.subscribedSessions.delete(sessionId);
+        log.debug(`[WsServer] Client unsubscribed from chat session: ${sessionId}`);
+      }
+      break;
+    }
+
+    case 'chat:send': {
       if (!clientInfo.device.canControl) {
         sendMessage(ws, {
           type: 'error',
@@ -214,10 +218,24 @@ function handleClientMessage(ws: WebSocket, message: WsMessage, clientInfo: Clie
       }
 
       const sessionId = message.sessionId;
-      const { cols, rows } = (message.payload as { cols?: number; rows?: number }) || {};
+      const content = (message.payload as { content?: string; cwd?: string })?.content;
+      const cwd = (message.payload as { cwd?: string })?.cwd;
 
-      if (sessionId && cols && rows && ptyManager.getSession(sessionId)) {
-        ptyManager.resize(sessionId, cols, rows);
+      if (sessionId && content) {
+        const isRunning = claudeSessionManager.isSessionRunning(sessionId);
+        if (isRunning) {
+          sendMessage(ws, {
+            type: 'error',
+            payload: { message: 'Session is currently processing. Wait for it to become idle.' },
+            timestamp: Date.now(),
+          });
+        } else if (claudeSessionManager.getClaudeSessionId(sessionId)) {
+          // Existing Claude session — resume
+          claudeSessionManager.sendMessage(sessionId, content);
+        } else {
+          // No existing session — start new one
+          claudeSessionManager.startSession(sessionId, cwd || '.', content);
+        }
       }
       break;
     }
@@ -237,32 +255,50 @@ function handleClientMessage(ws: WebSocket, message: WsMessage, clientInfo: Clie
 }
 
 /**
- * Set up forwarding of PTY data to subscribed clients
+ * Set up forwarding of Claude session manager events to subscribed clients
  */
-function setupPtyForwarding(clients: Map<WebSocket, ClientInfo>): void {
-  // Listen for PTY data events
-  ptyManager.on('data', ({ id, data }: { id: string; data: string }) => {
+function setupChatForwarding(clients: Map<WebSocket, ClientInfo>): void {
+  // Forward Claude JSON events
+  claudeSessionManager.on('event', ({ sessionId, event }: { sessionId: string; event: unknown }) => {
     const message: WsMessage = {
-      type: 'terminal:output',
-      sessionId: id,
-      payload: { data },
+      type: 'chat:event',
+      sessionId,
+      payload: { event },
       timestamp: Date.now(),
     };
 
     const msgStr = JSON.stringify(message);
 
     for (const [ws, info] of clients) {
-      if (ws.readyState === WebSocket.OPEN && info.subscribedSessions.has(id)) {
+      if (ws.readyState === WebSocket.OPEN && info.subscribedSessions.has(sessionId)) {
         ws.send(msgStr);
       }
     }
   });
 
-  // Listen for PTY exit events
-  ptyManager.on('exit', ({ id, exitCode }: { id: string; exitCode: number }) => {
+  // Forward state changes
+  claudeSessionManager.on('state-change', ({ sessionId, status }: { sessionId: string; status: unknown }) => {
     const message: WsMessage = {
-      type: 'terminal:exit',
-      sessionId: id,
+      type: 'chat:stateChange',
+      sessionId,
+      payload: { status },
+      timestamp: Date.now(),
+    };
+
+    const msgStr = JSON.stringify(message);
+
+    for (const [ws, info] of clients) {
+      if (ws.readyState === WebSocket.OPEN && info.subscribedSessions.has(sessionId)) {
+        ws.send(msgStr);
+      }
+    }
+  });
+
+  // Forward session ended
+  claudeSessionManager.on('session-ended', ({ sessionId, exitCode }: { sessionId: string; exitCode: number }) => {
+    const message: WsMessage = {
+      type: 'chat:ended',
+      sessionId,
       payload: { exitCode },
       timestamp: Date.now(),
     };
@@ -270,7 +306,25 @@ function setupPtyForwarding(clients: Map<WebSocket, ClientInfo>): void {
     const msgStr = JSON.stringify(message);
 
     for (const [ws, info] of clients) {
-      if (ws.readyState === WebSocket.OPEN && info.subscribedSessions.has(id)) {
+      if (ws.readyState === WebSocket.OPEN && info.subscribedSessions.has(sessionId)) {
+        ws.send(msgStr);
+      }
+    }
+  });
+
+  // Forward errors
+  claudeSessionManager.on('error', ({ sessionId, error }: { sessionId: string; error: string }) => {
+    const message: WsMessage = {
+      type: 'chat:error',
+      sessionId,
+      payload: { error },
+      timestamp: Date.now(),
+    };
+
+    const msgStr = JSON.stringify(message);
+
+    for (const [ws, info] of clients) {
+      if (ws.readyState === WebSocket.OPEN && info.subscribedSessions.has(sessionId)) {
         ws.send(msgStr);
       }
     }

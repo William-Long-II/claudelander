@@ -1,5 +1,6 @@
 import { getDatabase } from '../database';
 import { Group } from '../../shared/types';
+import log from 'electron-log';
 
 export function getAllGroups(): Group[] {
   const db = getDatabase();
@@ -14,14 +15,15 @@ export function getAllGroups(): Group[] {
     createdAt: new Date(row.created_at),
     parentId: row.parent_id || null,
     collapsed: Boolean(row.collapsed),
+    claudeConfig: row.claude_config ? (() => { try { return JSON.parse(row.claude_config); } catch { log.warn(`[Groups] Malformed claude_config for group ${row.id}`); return undefined; } })() : undefined,
   }));
 }
 
 export function createGroup(group: Group): void {
   const db = getDatabase();
   db.prepare(`
-    INSERT INTO groups (id, name, color, working_dir, "order", created_at, parent_id, collapsed)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO groups (id, name, color, working_dir, "order", created_at, parent_id, collapsed, claude_config)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     group.id,
     group.name,
@@ -30,7 +32,8 @@ export function createGroup(group: Group): void {
     group.order,
     group.createdAt.toISOString(),
     group.parentId || null,
-    group.collapsed ? 1 : 0
+    group.collapsed ? 1 : 0,
+    group.claudeConfig ? JSON.stringify(group.claudeConfig) : null
   );
 }
 
@@ -62,6 +65,10 @@ export function updateGroup(id: string, updates: Partial<Group>): void {
   if (updates.collapsed !== undefined) {
     fields.push('collapsed = ?');
     values.push(updates.collapsed ? 1 : 0);
+  }
+  if (updates.claudeConfig !== undefined) {
+    fields.push('claude_config = ?');
+    values.push(updates.claudeConfig ? JSON.stringify(updates.claudeConfig) : null);
   }
 
   if (fields.length > 0) {
