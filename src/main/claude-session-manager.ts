@@ -1,9 +1,11 @@
 import { spawn, ChildProcess, execSync } from 'child_process';
 import { EventEmitter } from 'events';
 import log from 'electron-log';
-import { ClaudeJsonEvent, SessionStatus, SessionState3, ClaudeConfig, PermissionRequest } from '../shared/types';
+import { ClaudeJsonEvent, SessionStatus, SessionState3, ClaudeConfig, PermissionRequest, DiffReviewData } from '../shared/types';
 import { configToCliArgs } from './claude-config-resolver';
 import { evaluatePermission } from './permission-evaluator';
+import { evaluateGuard } from './filesystem-guard';
+import { worktreeManager } from './worktree-manager';
 import * as crypto from 'crypto';
 
 const IS_WINDOWS = process.platform === 'win32';
@@ -36,6 +38,10 @@ interface ManagedSession {
   groupId: string | null;
   controlProtocolActive: boolean;
   pendingPermissions: Map<string, PendingPermission>;
+  /** True when permissionMode is 'fullAuto' (sandboxed) */
+  isFullAuto: boolean;
+  /** Worktree path for sandboxed sessions */
+  worktreePath: string | null;
 }
 
 /**
@@ -72,17 +78,40 @@ export class ClaudeSessionManager extends EventEmitter {
       return;
     }
 
-    const args = this.buildArgs(options?.claudeConfig, options?.resumeSessionId);
+    const isFullAuto = options?.claudeConfig?.permissionMode === 'fullAuto';
+    let effectiveCwd = cwd;
+    let worktreePath: string | null = null;
+
+    // For fullAuto mode: create a git worktree and use it as the cwd
+    if (isFullAuto) {
+      try {
+        const wtInfo = worktreeManager.create(cwd, sessionId);
+        effectiveCwd = wtInfo.worktreePath;
+        worktreePath = wtInfo.worktreePath;
+        log.info(`[ClaudeSession] FullAuto: created worktree at ${worktreePath}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        log.error(`[ClaudeSession] Failed to create worktree for fullAuto: ${msg}`);
+        this.emit('error', { sessionId, error: `Sandbox setup failed: ${msg}` });
+        return;
+      }
+    }
+
+    const args = this.buildArgs(options?.claudeConfig, options?.resumeSessionId, isFullAuto);
 
     if (options?.claudeConfig) {
-      args.push(...configToCliArgs(options.claudeConfig));
+      // For fullAuto, strip the permissionMode from config-to-CLI since we handle it ourselves
+      const configForArgs = isFullAuto
+        ? { ...options.claudeConfig, permissionMode: undefined }
+        : options.claudeConfig;
+      args.push(...configToCliArgs(configForArgs));
     }
 
     log.info(`[ClaudeSession] Spawning: claude ${args.join(' ').substring(0, 120)}`);
-    log.info(`[ClaudeSession] CWD: ${cwd}, prompt length: ${prompt.length}`);
+    log.info(`[ClaudeSession] CWD: ${effectiveCwd}, prompt length: ${prompt.length}`);
 
     const proc = spawn('claude', args, {
-      cwd,
+      cwd: effectiveCwd,
       env: cleanEnvForClaude(),
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
@@ -98,7 +127,7 @@ export class ClaudeSessionManager extends EventEmitter {
 
     const session: ManagedSession = {
       id: sessionId,
-      cwd,
+      cwd: effectiveCwd,
       process: proc,
       claudeSessionId: options?.resumeSessionId || null,
       state: 'thinking',
@@ -111,6 +140,8 @@ export class ClaudeSessionManager extends EventEmitter {
       groupId: options?.groupId ?? null,
       controlProtocolActive: false,
       pendingPermissions: new Map(),
+      isFullAuto,
+      worktreePath,
     };
 
     this.sessions.set(sessionId, session);
@@ -132,10 +163,13 @@ export class ClaudeSessionManager extends EventEmitter {
       return;
     }
 
-    const args = this.buildArgs(claudeConfig, session.claudeSessionId ?? undefined);
+    const args = this.buildArgs(claudeConfig, session.claudeSessionId ?? undefined, session.isFullAuto);
 
     if (claudeConfig) {
-      args.push(...configToCliArgs(claudeConfig));
+      const configForArgs = session.isFullAuto
+        ? { ...claudeConfig, permissionMode: undefined }
+        : claudeConfig;
+      args.push(...configToCliArgs(configForArgs));
     }
 
     const proc = spawn('claude', args, {
@@ -222,11 +256,24 @@ export class ClaudeSessionManager extends EventEmitter {
       return Promise.resolve({ behavior: 'deny', message: 'Session not found' });
     }
 
-    // Check saved permission rules first
-    const evalResult = evaluatePermission(toolName, toolInput, sessionId, session.groupId);
-    if (evalResult.matched) {
-      log.info(`[ClaudeSession] Hook permission auto-resolved: ${evalResult.decision} for ${toolName}`);
-      return Promise.resolve({ behavior: evalResult.decision });
+    // FullAuto mode: use filesystem guard
+    if (session.isFullAuto && session.worktreePath) {
+      const guardResult = evaluateGuard(toolName, toolInput, session.worktreePath);
+      if (guardResult.decision === 'allow') {
+        log.info(`[ClaudeSession] FullAuto hook guard: allowed ${toolName} (within boundary)`);
+        return Promise.resolve({ behavior: 'allow' });
+      }
+      log.info(`[ClaudeSession] FullAuto hook guard: prompting for ${toolName} — ${guardResult.reason}`);
+      // Fall through to prompt user
+    }
+
+    // Check saved permission rules first (for non-fullAuto sessions)
+    if (!session.isFullAuto) {
+      const evalResult = evaluatePermission(toolName, toolInput, sessionId, session.groupId);
+      if (evalResult.matched) {
+        log.info(`[ClaudeSession] Hook permission auto-resolved: ${evalResult.decision} for ${toolName}`);
+        return Promise.resolve({ behavior: evalResult.decision });
+      }
     }
 
     // No saved rule — prompt the user
@@ -317,6 +364,10 @@ export class ClaudeSessionManager extends EventEmitter {
 
   async removeSession(sessionId: string): Promise<void> {
     await this.killSession(sessionId);
+    // Clean up worktree if this was a sandboxed session
+    if (worktreeManager.hasWorktree(sessionId)) {
+      worktreeManager.cleanup(sessionId);
+    }
     this.sessions.delete(sessionId);
   }
 
@@ -352,17 +403,40 @@ export class ClaudeSessionManager extends EventEmitter {
     return this.sessions.get(sessionId)?.claudeSessionId ?? null;
   }
 
+  /**
+   * Check if a session is running in fullAuto (sandboxed) mode.
+   */
+  isFullAutoSession(sessionId: string): boolean {
+    return this.sessions.get(sessionId)?.isFullAuto ?? false;
+  }
+
+  /**
+   * Get the worktree path for a sandboxed session.
+   */
+  getWorktreePath(sessionId: string): string | null {
+    return this.sessions.get(sessionId)?.worktreePath ?? null;
+  }
+
   // ---- Private ----
 
-  private buildArgs(claudeConfig?: ClaudeConfig, resumeSessionId?: string): string[] {
+  private buildArgs(claudeConfig?: ClaudeConfig, resumeSessionId?: string, isFullAuto?: boolean): string[] {
     const args = [
       '-p',
       '--output-format', 'stream-json',
       '--input-format', 'stream-json',
-      '--permission-prompt-tool', 'stdio',
       '--verbose',
       '--include-partial-messages',
     ];
+
+    if (isFullAuto) {
+      // FullAuto: skip Claude's built-in permissions (we enforce boundaries via filesystem guard)
+      // Still use permission-prompt-tool so the guard can intercept out-of-boundary operations
+      args.push('--permission-prompt-tool', 'stdio');
+      args.push('--dangerously-skip-permissions');
+    } else {
+      // Normal mode: use control protocol for interactive permission prompts
+      args.push('--permission-prompt-tool', 'stdio');
+    }
 
     if (resumeSessionId) {
       args.push('--resume', resumeSessionId);
@@ -399,6 +473,32 @@ export class ClaudeSessionManager extends EventEmitter {
         sess.pendingPermissions.clear();
 
         log.info(`[ClaudeSession] Claude session ID for resume: ${sess.claudeSessionId || 'NOT CAPTURED'}`);
+
+        // For fullAuto sessions: generate diff for review before cleanup
+        if (sess.isFullAuto && sess.worktreePath) {
+          try {
+            const diffResult = worktreeManager.getDiff(sessionId);
+            if (diffResult.files.length > 0) {
+              const diffData: DiffReviewData = {
+                sessionId,
+                baseBranch: diffResult.baseBranch,
+                worktreeBranch: diffResult.worktreeBranch,
+                files: diffResult.files,
+                summary: diffResult.summary,
+              };
+              log.info(`[ClaudeSession] FullAuto: ${diffResult.files.length} files changed, emitting diff review`);
+              this.emit('diff-review', { sessionId, diffData });
+            } else {
+              log.info(`[ClaudeSession] FullAuto: no changes to review, cleaning up worktree`);
+              worktreeManager.cleanup(sessionId);
+            }
+          } catch (err) {
+            log.error(`[ClaudeSession] FullAuto: failed to get diff:`, err);
+            // Clean up anyway
+            worktreeManager.cleanup(sessionId);
+          }
+        }
+
         sess.process = null;
         sess.state = 'idle';
         sess.description = 'Idle';
@@ -510,18 +610,32 @@ export class ClaudeSessionManager extends EventEmitter {
     const toolInput = request.input || {};
     const toolUseId = request.tool_use_id || '';
 
-    // Check saved permission rules first
-    const evalResult = evaluatePermission(toolName, toolInput, sessionId, session.groupId);
-    if (evalResult.matched) {
-      log.info(`[ClaudeSession] Permission auto-resolved: ${evalResult.decision} for ${toolName}`);
-      this.sendControlResponse(
-        session,
-        parsed.request_id,
-        evalResult.decision,
-        evalResult.decision === 'deny' ? 'Blocked by saved rule' : undefined,
-        evalResult.decision === 'allow' ? toolInput : undefined
-      );
-      return;
+    // FullAuto mode: use filesystem guard instead of normal permission rules
+    if (session.isFullAuto && session.worktreePath) {
+      const guardResult = evaluateGuard(toolName, toolInput, session.worktreePath);
+      if (guardResult.decision === 'allow') {
+        log.info(`[ClaudeSession] FullAuto guard: allowed ${toolName} (within boundary)`);
+        this.sendControlResponse(session, parsed.request_id, 'allow', undefined, toolInput);
+        return;
+      }
+      // Guard says prompt — fall through to show permission UI
+      log.info(`[ClaudeSession] FullAuto guard: prompting for ${toolName} — ${guardResult.reason}`);
+    }
+
+    // Check saved permission rules first (for non-fullAuto, or fullAuto out-of-boundary)
+    if (!session.isFullAuto) {
+      const evalResult = evaluatePermission(toolName, toolInput, sessionId, session.groupId);
+      if (evalResult.matched) {
+        log.info(`[ClaudeSession] Permission auto-resolved: ${evalResult.decision} for ${toolName}`);
+        this.sendControlResponse(
+          session,
+          parsed.request_id,
+          evalResult.decision,
+          evalResult.decision === 'deny' ? 'Blocked by saved rule' : undefined,
+          evalResult.decision === 'allow' ? toolInput : undefined
+        );
+        return;
+      }
     }
 
     // No saved rule — prompt the user via the renderer

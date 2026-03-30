@@ -4,6 +4,7 @@ import { ChatInput } from './ChatInput';
 import { SessionSettingsBar } from './SessionSettingsBar';
 import { BranchSelector } from './BranchSelector';
 import { PermissionPrompt } from './PermissionPrompt';
+import { DiffReviewPanel } from './DiffReviewPanel';
 import { useClaudeSession } from '../../hooks/useClaudeSession';
 import { useChatPreferences } from '../../hooks/useChatPreferences';
 import { ClaudeConfig } from '../../../shared/types';
@@ -34,6 +35,10 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
     switchBranch,
     pendingPermissions,
     respondToPermission,
+    diffReview,
+    isFullAuto,
+    applyDiffChanges,
+    rejectDiffChanges,
   } = useClaudeSession({ sessionId });
 
   const chatPrefs = useChatPreferences();
@@ -180,6 +185,11 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
             </button>
           </span>
         )}
+        {isFullAuto && (
+          <span className="sandboxed-badge" title="Running in sandboxed mode — changes reviewed before applying">
+            Sandboxed
+          </span>
+        )}
         {status && (
           <span className={`chat-status ${status.state}`}>
             {status.description}
@@ -221,6 +231,14 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
             onRespond={respondToPermission}
           />
         ))}
+
+        {diffReview && (
+          <DiffReviewPanel
+            diffData={diffReview}
+            onApply={applyDiffChanges}
+            onReject={rejectDiffChanges}
+          />
+        )}
 
         <div ref={messagesEndRef} />
       </div>

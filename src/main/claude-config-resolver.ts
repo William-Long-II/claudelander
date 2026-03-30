@@ -63,7 +63,8 @@ export function configToCliArgs(config: ClaudeConfig): string[] {
   if (effort) args.push('--effort', effort);
 
   const perm = config.permissionMode && sanitizeArg(config.permissionMode, 'permissionMode');
-  if (perm) args.push('--permission-mode', perm);
+  // 'fullAuto' is handled by ClaudeSessionManager (worktree + --dangerously-skip-permissions)
+  if (perm && perm !== 'fullAuto') args.push('--permission-mode', perm);
 
   if (config.maxBudgetUsd != null && Number.isFinite(config.maxBudgetUsd) && config.maxBudgetUsd >= 0) {
     args.push('--max-budget-usd', String(config.maxBudgetUsd));

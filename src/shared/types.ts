@@ -3,17 +3,12 @@ export type SessionState = 'idle' | 'working' | 'waiting' | 'error' | 'stopped';
 export interface ClaudeConfig {
   model?: string;
   effort?: string;
+  /** 'default' | 'plan' | 'acceptEdits' | 'auto' | 'fullAuto' */
   permissionMode?: string;
   maxBudgetUsd?: number;
   systemPrompt?: string;
   allowedTools?: string[];
   disallowedTools?: string[];
-  sandboxEnabled?: boolean;
-  sandboxImage?: string;
-  sandboxResourceLimits?: {
-    memoryMb?: number;
-    cpus?: number;
-  };
 }
 
 export interface Session {
@@ -478,6 +473,28 @@ export interface PermissionRuleCreateInput {
   toolPattern: string;
   decision: PermissionDecision;
   createdBy?: 'user' | 'auto';
+}
+
+// =============================================================================
+// Sandbox / Diff Review Types (3.1 Phase 2)
+// =============================================================================
+
+export interface DiffFile {
+  path: string;
+  status: 'added' | 'modified' | 'deleted' | 'renamed';
+  diff: string;
+}
+
+export interface DiffReviewData {
+  sessionId: string;
+  baseBranch: string;
+  worktreeBranch: string;
+  files: DiffFile[];
+  summary: {
+    added: number;
+    modified: number;
+    deleted: number;
+  };
 }
 
 export interface ClaudeToolUse {

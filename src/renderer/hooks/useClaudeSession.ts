@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ChatMessageData } from '../components/chat/ChatMessage';
-import type { PermissionRequest } from '../../shared/types';
+import type { PermissionRequest, DiffReviewData } from '../../shared/types';
 
 interface UseClaudeSessionOptions {
   sessionId: string | null;
@@ -16,6 +16,8 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
   const [streamingThinking, setStreamingThinking] = useState('');
   const [streamingToolCalls, setStreamingToolCalls] = useState<any[]>([]);
   const [pendingPermissions, setPendingPermissions] = useState<PermissionRequest[]>([]);
+  const [diffReview, setDiffReview] = useState<DiffReviewData | null>(null);
+  const [isFullAuto, setIsFullAuto] = useState(false);
   const contentRef = useRef('');
   const thinkingRef = useRef('');
   const toolCallsRef = useRef<any[]>([]);
@@ -264,11 +266,21 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
       setPendingPermissions(prev => [...prev, request]);
     });
 
+    // Diff review subscription (3.1 Phase 2 — sandbox)
+    const unsubDiffReview = window.electronAPI.onClaudeDiffReview((sid: string, data: DiffReviewData) => {
+      if (sid !== sessionId) return;
+      setDiffReview(data);
+    });
+
+    // Check if session is fullAuto
+    window.electronAPI.sandboxIsFullAuto(sessionId).then(setIsFullAuto).catch(() => setIsFullAuto(false));
+
     return () => {
       unsubEvent();
       unsubState();
       unsubEnded();
       unsubPermission();
+      unsubDiffReview();
     };
   }, [sessionId]);
 
@@ -329,6 +341,18 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
     setPendingPermissions(prev => prev.filter(p => p.requestId !== requestId));
   }, [sessionId]);
 
+  const applyDiffChanges = useCallback(async (selectedFiles?: string[]) => {
+    if (!sessionId) return;
+    await window.electronAPI.sandboxApplyChanges(sessionId, selectedFiles);
+    setDiffReview(null);
+  }, [sessionId]);
+
+  const rejectDiffChanges = useCallback(async () => {
+    if (!sessionId) return;
+    await window.electronAPI.sandboxRejectChanges(sessionId);
+    setDiffReview(null);
+  }, [sessionId]);
+
   // Build the streaming message for display
   const currentStreamingMessage: ChatMessageData | null = isRunning && (streamingContent || streamingToolCalls.length > 0)
     ? {
@@ -355,5 +379,9 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
     switchBranch,
     pendingPermissions,
     respondToPermission,
+    diffReview,
+    isFullAuto,
+    applyDiffChanges,
+    rejectDiffChanges,
   };
 }
