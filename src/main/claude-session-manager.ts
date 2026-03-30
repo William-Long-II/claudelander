@@ -120,9 +120,8 @@ export class ClaudeSessionManager extends EventEmitter {
 
     log.info(`[ClaudeSession] Process spawned, PID: ${proc.pid}`);
 
-    // Write prompt via stdin — keep stdin OPEN for control protocol responses
-    proc.stdin!.write(prompt);
-    proc.stdin!.write('\n');
+    // Write prompt as stream-json input, keep stdin OPEN for control protocol responses
+    proc.stdin!.write(JSON.stringify({ type: 'user_message', content: prompt }) + '\n');
     // DO NOT call proc.stdin!.end() — stdin stays open for permission responses
 
     const session: ManagedSession = {
@@ -180,9 +179,8 @@ export class ClaudeSessionManager extends EventEmitter {
       shell: IS_WINDOWS,
     });
 
-    // Write prompt via stdin — keep stdin OPEN for control protocol responses
-    proc.stdin!.write(prompt);
-    proc.stdin!.write('\n');
+    // Write prompt as stream-json input, keep stdin OPEN for control protocol responses
+    proc.stdin!.write(JSON.stringify({ type: 'user_message', content: prompt }) + '\n');
 
     session.process = proc;
     session.state = 'thinking';
@@ -254,6 +252,13 @@ export class ClaudeSessionManager extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (!session) {
       return Promise.resolve({ behavior: 'deny', message: 'Session not found' });
+    }
+
+    // If the control protocol is active, it handles permissions — auto-allow
+    // the hook to avoid double-prompting the user for the same tool use
+    if (session.controlProtocolActive) {
+      log.info(`[ClaudeSession] Hook: auto-allowing ${toolName} (control protocol is active)`);
+      return Promise.resolve({ behavior: 'allow' });
     }
 
     // FullAuto mode: use filesystem guard
@@ -719,6 +724,13 @@ export class ClaudeSessionManager extends EventEmitter {
 
       case 'content_block_start':
         if (event.content_block?.type === 'tool_use') {
+          // Fallback detection: if we see a tool_use without having received any
+          // control_request, the control protocol isn't working (known issue on some
+          // CLI versions). The PreToolUse hook fallback will handle permissions instead.
+          if (!session.controlProtocolActive) {
+            log.warn(`[ClaudeSession] Tool use '${event.content_block.name}' arrived without control protocol active — relying on PreToolUse hook fallback for permissions`);
+          }
+
           session.state = 'tool_executing';
           session.currentTool = event.content_block.name;
           session.description = `Using ${event.content_block.name}`;
