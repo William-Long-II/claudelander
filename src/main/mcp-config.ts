@@ -297,6 +297,12 @@ export function registerHooks(): { success: boolean; action: 'added' | 'updated'
       command: `cat | ${nodeCmd} -e "require('${hookScriptPath.replace(/\\/g, '/')}')" ${hookType}`,
     });
 
+    // PreToolUse hook for permission approval fallback (3.1)
+    const preToolUseHook: HookConfig = {
+      matcher: '',  // Match ALL tools for permission checks
+      hooks: [makeHookCmd('PreToolUse')],
+    };
+
     // PostToolUse hook for Bash (captures git commits)
     const postToolUseHook: HookConfig = {
       matcher: 'Bash',
@@ -318,6 +324,7 @@ export function registerHooks(): { success: boolean; action: 'added' | 'updated'
     };
 
     // Add our hooks
+    settings.hooks.PreToolUse = [...filterOurHooks(settings.hooks.PreToolUse), preToolUseHook];
     settings.hooks.PostToolUse = [...filterOurHooks(settings.hooks.PostToolUse), postToolUseHook];
     settings.hooks.Stop = [...filterOurHooks(settings.hooks.Stop), stopHook];
 

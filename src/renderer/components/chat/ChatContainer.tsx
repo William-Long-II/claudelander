@@ -3,6 +3,7 @@ import { ChatMessage, ChatMessageData } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { SessionSettingsBar } from './SessionSettingsBar';
 import { BranchSelector } from './BranchSelector';
+import { PermissionPrompt } from './PermissionPrompt';
 import { useClaudeSession } from '../../hooks/useClaudeSession';
 import { useChatPreferences } from '../../hooks/useChatPreferences';
 import { ClaudeConfig } from '../../../shared/types';
@@ -31,6 +32,8 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
     stopSession,
     currentBranchId,
     switchBranch,
+    pendingPermissions,
+    respondToPermission,
   } = useClaudeSession({ sessionId });
 
   const chatPrefs = useChatPreferences();
@@ -209,6 +212,14 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
           <div key={msg.id} id={`msg-${msg.id}`}>
             <ChatMessage message={msg} onSaveAsKnowledge={handleSaveAsKnowledge} onFork={handleFork} showThinking={chatPrefs.showThinking} />
           </div>
+        ))}
+
+        {pendingPermissions.map((req) => (
+          <PermissionPrompt
+            key={req.requestId}
+            request={req}
+            onRespond={respondToPermission}
+          />
         ))}
 
         <div ref={messagesEndRef} />

@@ -21,6 +21,7 @@ import { createMemoriesRouter } from './routes/memories';
 import { createKnowledgeRouter } from './routes/knowledge';
 import { createHooksRouter } from './routes/hooks';
 import { createCodeSearchRouter } from './routes/code-search';
+import { createPermissionsRouter } from './routes/permissions';
 
 export interface HttpServerConfig {
   port: number;
@@ -146,6 +147,9 @@ export async function createHttpServer(config: HttpServerConfig): Promise<HttpSe
 
   // Hook routes for Claude Code hooks (localhost-only, no device auth needed)
   app.use('/api/v1/hooks', generalLimiter, createHooksRouter());
+
+  // Permission routes for tool approval (localhost-only, no device auth needed)
+  app.use('/api/v1/permissions', generalLimiter, createPermissionsRouter());
 
   // Code search routes for MCP server (localhost-only, no device auth needed)
   app.use('/api/v1/code', generalLimiter, createCodeSearchRouter());

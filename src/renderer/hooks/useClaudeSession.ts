@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ChatMessageData } from '../components/chat/ChatMessage';
+import type { PermissionRequest } from '../../shared/types';
 
 interface UseClaudeSessionOptions {
   sessionId: string | null;
@@ -14,6 +15,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
   const [streamingContent, setStreamingContent] = useState('');
   const [streamingThinking, setStreamingThinking] = useState('');
   const [streamingToolCalls, setStreamingToolCalls] = useState<any[]>([]);
+  const [pendingPermissions, setPendingPermissions] = useState<PermissionRequest[]>([]);
   const contentRef = useRef('');
   const thinkingRef = useRef('');
   const toolCallsRef = useRef<any[]>([]);
@@ -253,12 +255,20 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
       setStreamingThinking('');
       setStreamingToolCalls([]);
       setIsRunning(false);
+      setPendingPermissions([]);
+    });
+
+    // Permission request subscription (3.1)
+    const unsubPermission = window.electronAPI.onClaudePermissionRequest((sid: string, request: PermissionRequest) => {
+      if (sid !== sessionId) return;
+      setPendingPermissions(prev => [...prev, request]);
     });
 
     return () => {
       unsubEvent();
       unsubState();
       unsubEnded();
+      unsubPermission();
     };
   }, [sessionId]);
 
@@ -313,6 +323,12 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
     setCurrentBranchId(branchId);
   }, []);
 
+  const respondToPermission = useCallback(async (requestId: string, decision: 'allow' | 'deny', scope: string, toolPattern?: string) => {
+    if (!sessionId) return;
+    await window.electronAPI.claudeRespondPermission(sessionId, requestId, decision, scope, toolPattern);
+    setPendingPermissions(prev => prev.filter(p => p.requestId !== requestId));
+  }, [sessionId]);
+
   // Build the streaming message for display
   const currentStreamingMessage: ChatMessageData | null = isRunning && (streamingContent || streamingToolCalls.length > 0)
     ? {
@@ -337,5 +353,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
     stopSession,
     currentBranchId,
     switchBranch,
+    pendingPermissions,
+    respondToPermission,
   };
 }

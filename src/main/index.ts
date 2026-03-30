@@ -28,6 +28,8 @@ import { openInEditor, detectAvailableEditors, getEditorOptions, EditorType } fr
 import { claudeSessionManager } from './claude-session-manager';
 import { resolveClaudeConfig, buildKnowledgeContext } from './claude-config-resolver';
 import { extractKnowledgeCandidates } from './knowledge/extractor';
+import * as permissionRulesRepo from './repositories/permission-rules';
+import { inferToolPattern } from './permission-evaluator';
 import { detectDomains } from './knowledge/domain-tagger';
 import { findPromotionCandidates, applyDecayPass } from './knowledge/promotion-engine';
 import * as skillRegistry from './skill-registry';
@@ -423,6 +425,7 @@ function createWindow(): void {
     // Map 3.0 SessionState3 to legacy state for DB and notifications
     const legacyState = status.state === 'idle' ? 'idle'
       : status.state === 'error' ? 'error'
+      : status.state === 'waiting_permission' ? 'waiting'
       : 'working';
     try {
       sessionsRepo.updateSession(sessionId, {
@@ -450,6 +453,50 @@ function createWindow(): void {
 
   claudeSessionManager.on('error', ({ sessionId, error }: { sessionId: string; error: string }) => {
     mainWindow?.webContents.send('claude:error', sessionId, error);
+  });
+
+  // Permission request forwarding (3.1)
+  claudeSessionManager.on('permission-request', ({ sessionId, request }: { sessionId: string; request: any }) => {
+    log.info(`[Permissions] Forwarding permission request to renderer: ${request.toolName} (${request.requestId})`);
+    mainWindow?.webContents.send('claude:permissionRequest', sessionId, request);
+  });
+
+  // Permission response handler (3.1)
+  ipcMain.handle('claude:respondPermission', async (_event, sessionId: string, requestId: string, decision: 'allow' | 'deny', scope: string, toolPattern?: string) => {
+    log.info(`[Permissions] User responded: ${decision} (scope: ${scope}) for ${requestId}`);
+
+    // Persist the decision if scope is not 'once'
+    if (scope !== 'once' && toolPattern) {
+      const session = sessionsRepo.getAllSessions().find(s => s.id === sessionId);
+      try {
+        permissionRulesRepo.createRule({
+          id: randomUUID(),
+          scope: scope as 'session' | 'group' | 'global',
+          scopeId: scope === 'session' ? sessionId : scope === 'group' ? (session?.groupId || null) : null,
+          toolPattern,
+          decision,
+          createdBy: 'user',
+        });
+        log.info(`[Permissions] Saved ${decision} rule: ${toolPattern} (${scope})`);
+      } catch (err) {
+        log.error(`[Permissions] Failed to save rule:`, err);
+      }
+    }
+
+    claudeSessionManager.respondToPermission(sessionId, requestId, decision);
+  });
+
+  // Permission rules management (3.1)
+  ipcMain.handle('permission:getRules', async () => {
+    return permissionRulesRepo.getAllRules();
+  });
+
+  ipcMain.handle('permission:deleteRule', async (_event, id: string) => {
+    permissionRulesRepo.deleteRule(id);
+  });
+
+  ipcMain.handle('permission:clearAll', async () => {
+    permissionRulesRepo.clearAllRules();
   });
 
   // Save window bounds on resize/move

@@ -221,6 +221,11 @@ export interface ElectronAPI {
   onClaudeStateChange: (callback: (sessionId: string, status: SessionStatus) => void) => () => void;
   onClaudeEnded: (callback: (sessionId: string) => void) => () => void;
   onClaudeError: (callback: (sessionId: string, error: string) => void) => () => void;
+  onClaudePermissionRequest: (callback: (sessionId: string, request: any) => void) => () => void;
+  claudeRespondPermission: (sessionId: string, requestId: string, decision: 'allow' | 'deny', scope: string, toolPattern?: string) => Promise<void>;
+  getPermissionRules: () => Promise<any[]>;
+  deletePermissionRule: (id: string) => Promise<void>;
+  clearPermissionRules: () => Promise<void>;
 }
 
 declare global {

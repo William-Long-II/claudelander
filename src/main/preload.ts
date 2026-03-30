@@ -369,4 +369,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('claude:error', handler);
     return () => ipcRenderer.removeListener('claude:error', handler);
   },
+  onClaudePermissionRequest: (callback: (sessionId: string, request: any) => void) => {
+    const handler = (_: any, sessionId: string, request: any) => callback(sessionId, request);
+    ipcRenderer.on('claude:permissionRequest', handler);
+    return () => ipcRenderer.removeListener('claude:permissionRequest', handler);
+  },
+  claudeRespondPermission: (sessionId: string, requestId: string, decision: 'allow' | 'deny', scope: string, toolPattern?: string) =>
+    ipcRenderer.invoke('claude:respondPermission', sessionId, requestId, decision, scope, toolPattern),
+  getPermissionRules: () => ipcRenderer.invoke('permission:getRules'),
+  deletePermissionRule: (id: string) => ipcRenderer.invoke('permission:deleteRule', id),
+  clearPermissionRules: () => ipcRenderer.invoke('permission:clearAll'),
 });

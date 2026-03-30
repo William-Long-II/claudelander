@@ -1,8 +1,10 @@
 import { spawn, ChildProcess, execSync } from 'child_process';
 import { EventEmitter } from 'events';
 import log from 'electron-log';
-import { ClaudeJsonEvent, SessionStatus, SessionState3, ClaudeConfig } from '../shared/types';
+import { ClaudeJsonEvent, SessionStatus, SessionState3, ClaudeConfig, PermissionRequest } from '../shared/types';
 import { configToCliArgs } from './claude-config-resolver';
+import { evaluatePermission } from './permission-evaluator';
+import * as crypto from 'crypto';
 
 const IS_WINDOWS = process.platform === 'win32';
 
@@ -11,6 +13,12 @@ function cleanEnvForClaude(): NodeJS.ProcessEnv {
   // Remove CLAUDECODE so nested Claude CLI instances don't refuse to start
   delete env.CLAUDECODE;
   return env;
+}
+
+interface PendingPermission {
+  requestId: string;
+  resolve: (result: { behavior: 'allow' | 'deny'; updatedInput?: Record<string, unknown>; message?: string }) => void;
+  timer: ReturnType<typeof setTimeout>;
 }
 
 interface ManagedSession {
@@ -26,23 +34,28 @@ interface ManagedSession {
   lastActivity: Date;
   stdoutBuffer: string;
   groupId: string | null;
+  controlProtocolActive: boolean;
+  pendingPermissions: Map<string, PendingPermission>;
 }
 
 /**
  * Manages Claude Code CLI subprocesses in headless JSON mode.
- * Replaces PtyManager for 3.0 chat-first architecture.
  *
- * Each session spawns: claude -p --output-format stream-json [prompt]
- * Follow-up messages use: claude -p --output-format stream-json --resume SESSION_ID [prompt]
+ * 3.1: Uses --input-format stream-json and --permission-prompt-tool stdio
+ * for bidirectional control protocol. Keeps stdin open for permission responses.
  *
  * Emits:
  *   'event' — { sessionId, event: ClaudeJsonEvent }
  *   'session-ended' — { sessionId, exitCode }
  *   'state-change' — { sessionId, status: SessionStatus }
  *   'error' — { sessionId, error: string }
+ *   'permission-request' — { sessionId, request: PermissionRequest }
  */
 export class ClaudeSessionManager extends EventEmitter {
   private sessions: Map<string, ManagedSession> = new Map();
+
+  /** Permission auto-deny timeout (5 minutes) */
+  private static readonly PERMISSION_TIMEOUT_MS = 300_000;
 
   startSession(
     sessionId: string,
@@ -59,18 +72,13 @@ export class ClaudeSessionManager extends EventEmitter {
       return;
     }
 
-    const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages'];
-
-    // Resume a previous Claude session (e.g. after app restart)
-    if (options?.resumeSessionId) {
-      args.push('--resume', options.resumeSessionId);
-    }
+    const args = this.buildArgs(options?.claudeConfig, options?.resumeSessionId);
 
     if (options?.claudeConfig) {
       args.push(...configToCliArgs(options.claudeConfig));
     }
 
-    log.info(`[ClaudeSession] Spawning: claude ${args.join(' ').substring(0, 100)}`);
+    log.info(`[ClaudeSession] Spawning: claude ${args.join(' ').substring(0, 120)}`);
     log.info(`[ClaudeSession] CWD: ${cwd}, prompt length: ${prompt.length}`);
 
     const proc = spawn('claude', args, {
@@ -83,9 +91,10 @@ export class ClaudeSessionManager extends EventEmitter {
 
     log.info(`[ClaudeSession] Process spawned, PID: ${proc.pid}`);
 
-    // Write prompt via stdin to avoid shell escaping issues on Windows
+    // Write prompt via stdin — keep stdin OPEN for control protocol responses
     proc.stdin!.write(prompt);
-    proc.stdin!.end();
+    proc.stdin!.write('\n');
+    // DO NOT call proc.stdin!.end() — stdin stays open for permission responses
 
     const session: ManagedSession = {
       id: sessionId,
@@ -100,49 +109,14 @@ export class ClaudeSessionManager extends EventEmitter {
       lastActivity: new Date(),
       stdoutBuffer: '',
       groupId: options?.groupId ?? null,
+      controlProtocolActive: false,
+      pendingPermissions: new Map(),
     };
 
     this.sessions.set(sessionId, session);
     this.emitStateChange(session);
 
-    proc.stdout!.on('data', (chunk: Buffer) => {
-      log.info(`[ClaudeSession] stdout data (${chunk.length} bytes) for ${sessionId}`);
-      this.handleStdoutData(sessionId, chunk);
-    });
-
-    proc.stderr!.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
-      log.info(`[ClaudeSession] stderr for ${sessionId}: ${text.substring(0, 200)}`);
-      this.emit('error', { sessionId, error: text });
-    });
-
-    proc.on('close', (exitCode) => {
-      log.info(`[ClaudeSession] Process closed for ${sessionId}, exitCode: ${exitCode}`);
-      const sess = this.sessions.get(sessionId);
-      if (sess) {
-        // Flush any remaining data in stdout buffer (e.g. the result line)
-        if (sess.stdoutBuffer.trim()) {
-          this.handleStdoutData(sessionId, Buffer.from('\n'));
-        }
-        log.info(`[ClaudeSession] Claude session ID for resume: ${sess.claudeSessionId || 'NOT CAPTURED'}`);
-        sess.process = null;
-        sess.state = 'idle';
-        sess.description = 'Idle';
-        this.emitStateChange(sess);
-      }
-      this.emit('session-ended', { sessionId, exitCode });
-    });
-
-    proc.on('error', (err) => {
-      log.error(`[ClaudeSession] Process error for ${sessionId}:`, err);
-      const sess = this.sessions.get(sessionId);
-      if (sess) {
-        sess.state = 'error';
-        sess.description = err.message;
-        this.emitStateChange(sess);
-      }
-      this.emit('error', { sessionId, error: err.message });
-    });
+    this.attachProcessHandlers(sessionId, proc, session);
   }
 
   sendMessage(sessionId: string, prompt: string, claudeConfig?: ClaudeConfig): void {
@@ -158,12 +132,7 @@ export class ClaudeSessionManager extends EventEmitter {
       return;
     }
 
-    const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages'];
-
-    // Resume the Claude session for multi-turn
-    if (session.claudeSessionId) {
-      args.push('--resume', session.claudeSessionId);
-    }
+    const args = this.buildArgs(claudeConfig, session.claudeSessionId ?? undefined);
 
     if (claudeConfig) {
       args.push(...configToCliArgs(claudeConfig));
@@ -177,45 +146,119 @@ export class ClaudeSessionManager extends EventEmitter {
       shell: IS_WINDOWS,
     });
 
-    // Write prompt via stdin to avoid shell escaping issues on Windows
+    // Write prompt via stdin — keep stdin OPEN for control protocol responses
     proc.stdin!.write(prompt);
-    proc.stdin!.end();
+    proc.stdin!.write('\n');
 
     session.process = proc;
     session.state = 'thinking';
     session.description = 'Thinking...';
     session.lastActivity = new Date();
+    session.controlProtocolActive = false;
+    session.pendingPermissions = new Map();
     this.emitStateChange(session);
 
-    proc.stdout!.on('data', (chunk: Buffer) => {
-      this.handleStdoutData(sessionId, chunk);
-    });
+    this.attachProcessHandlers(sessionId, proc, session);
+  }
 
-    proc.stderr!.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
-      log.warn(`[ClaudeSession] stderr for ${sessionId}:`, text);
-      this.emit('error', { sessionId, error: text });
-    });
+  /**
+   * Respond to a pending permission request.
+   * Called by the IPC handler when the user clicks Allow/Deny in the UI.
+   */
+  respondToPermission(
+    sessionId: string,
+    requestId: string,
+    decision: 'allow' | 'deny',
+    message?: string,
+    updatedInput?: Record<string, unknown>
+  ): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      log.warn(`[ClaudeSession] No session ${sessionId} for permission response`);
+      return;
+    }
 
-    proc.on('close', (exitCode) => {
-      // Flush any remaining data in stdout buffer (e.g. the result line)
-      if (session.stdoutBuffer.trim()) {
-        this.handleStdoutData(sessionId, Buffer.from('\n'));
-      }
-      log.info(`[ClaudeSession] Resume session ID after sendMessage: ${session.claudeSessionId || 'NOT CAPTURED'}`);
-      session.process = null;
-      session.state = 'idle';
-      session.description = 'Idle';
+    const pending = session.pendingPermissions.get(requestId);
+    if (!pending) {
+      log.warn(`[ClaudeSession] No pending permission ${requestId} for session ${sessionId}`);
+      return;
+    }
+
+    clearTimeout(pending.timer);
+    session.pendingPermissions.delete(requestId);
+
+    if (session.controlProtocolActive) {
+      // Send control_response via stdin
+      this.sendControlResponse(session, requestId, decision, message, updatedInput);
+    } else {
+      // Resolve the hook's pending promise
+      pending.resolve({
+        behavior: decision,
+        updatedInput,
+        message,
+      });
+    }
+
+    // Restore state from waiting_permission
+    if (session.state === 'waiting_permission' && session.pendingPermissions.size === 0) {
+      session.state = 'tool_executing';
+      session.description = 'Working...';
       this.emitStateChange(session);
-      this.emit('session-ended', { sessionId, exitCode });
-    });
+    }
+  }
 
-    proc.on('error', (err) => {
-      log.error(`[ClaudeSession] Resume error for ${sessionId}:`, err);
-      session.state = 'error';
-      session.description = err.message;
+  /**
+   * Handle a permission request from the PreToolUse hook fallback.
+   * Returns a promise that resolves when the user responds.
+   */
+  handleHookPermissionRequest(
+    sessionId: string,
+    toolName: string,
+    toolInput: Record<string, unknown>,
+    toolUseId: string
+  ): Promise<{ behavior: 'allow' | 'deny'; updatedInput?: Record<string, unknown>; message?: string }> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return Promise.resolve({ behavior: 'deny', message: 'Session not found' });
+    }
+
+    // Check saved permission rules first
+    const evalResult = evaluatePermission(toolName, toolInput, sessionId, session.groupId);
+    if (evalResult.matched) {
+      log.info(`[ClaudeSession] Hook permission auto-resolved: ${evalResult.decision} for ${toolName}`);
+      return Promise.resolve({ behavior: evalResult.decision });
+    }
+
+    // No saved rule — prompt the user
+    const requestId = crypto.randomUUID();
+
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        log.warn(`[ClaudeSession] Permission request ${requestId} timed out, auto-denying`);
+        session.pendingPermissions.delete(requestId);
+        resolve({ behavior: 'deny', message: 'Permission request timed out' });
+
+        if (session.state === 'waiting_permission' && session.pendingPermissions.size === 0) {
+          session.state = 'tool_executing';
+          session.description = 'Working...';
+          this.emitStateChange(session);
+        }
+      }, ClaudeSessionManager.PERMISSION_TIMEOUT_MS);
+
+      session.pendingPermissions.set(requestId, { requestId, resolve, timer });
+
+      session.state = 'waiting_permission';
+      session.description = `Waiting: approve ${toolName}`;
       this.emitStateChange(session);
-      this.emit('error', { sessionId, error: err.message });
+
+      const request: PermissionRequest = {
+        requestId,
+        sessionId,
+        toolName,
+        toolInput,
+        toolUseId,
+      };
+      this.emit('permission-request', { sessionId, request });
     });
   }
 
@@ -223,8 +266,18 @@ export class ClaudeSessionManager extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (!session?.process) return Promise.resolve();
 
+    // Clean up any pending permissions
+    for (const [, pending] of session.pendingPermissions) {
+      clearTimeout(pending.timer);
+      pending.resolve({ behavior: 'deny', message: 'Session killed' });
+    }
+    session.pendingPermissions.clear();
+
     const proc = session.process;
     const pid = proc.pid;
+
+    // Close stdin before killing
+    try { proc.stdin?.end(); } catch { /* ignore */ }
 
     return new Promise<void>((resolve) => {
       // Resolve when the process actually exits
@@ -301,6 +354,71 @@ export class ClaudeSessionManager extends EventEmitter {
 
   // ---- Private ----
 
+  private buildArgs(claudeConfig?: ClaudeConfig, resumeSessionId?: string): string[] {
+    const args = [
+      '-p',
+      '--output-format', 'stream-json',
+      '--input-format', 'stream-json',
+      '--permission-prompt-tool', 'stdio',
+      '--verbose',
+      '--include-partial-messages',
+    ];
+
+    if (resumeSessionId) {
+      args.push('--resume', resumeSessionId);
+    }
+
+    return args;
+  }
+
+  private attachProcessHandlers(sessionId: string, proc: ChildProcess, session: ManagedSession): void {
+    proc.stdout!.on('data', (chunk: Buffer) => {
+      log.info(`[ClaudeSession] stdout data (${chunk.length} bytes) for ${sessionId}`);
+      this.handleStdoutData(sessionId, chunk);
+    });
+
+    proc.stderr!.on('data', (chunk: Buffer) => {
+      const text = chunk.toString();
+      log.info(`[ClaudeSession] stderr for ${sessionId}: ${text.substring(0, 200)}`);
+      this.emit('error', { sessionId, error: text });
+    });
+
+    proc.on('close', (exitCode) => {
+      log.info(`[ClaudeSession] Process closed for ${sessionId}, exitCode: ${exitCode}`);
+      const sess = this.sessions.get(sessionId);
+      if (sess) {
+        // Flush any remaining data in stdout buffer (e.g. the result line)
+        if (sess.stdoutBuffer.trim()) {
+          this.handleStdoutData(sessionId, Buffer.from('\n'));
+        }
+        // Clean up pending permissions
+        for (const [, pending] of sess.pendingPermissions) {
+          clearTimeout(pending.timer);
+          pending.resolve({ behavior: 'deny', message: 'Process exited' });
+        }
+        sess.pendingPermissions.clear();
+
+        log.info(`[ClaudeSession] Claude session ID for resume: ${sess.claudeSessionId || 'NOT CAPTURED'}`);
+        sess.process = null;
+        sess.state = 'idle';
+        sess.description = 'Idle';
+        this.emitStateChange(sess);
+      }
+      this.emit('session-ended', { sessionId, exitCode });
+    });
+
+    proc.on('error', (err) => {
+      log.error(`[ClaudeSession] Process error for ${sessionId}:`, err);
+      const sess = this.sessions.get(sessionId);
+      if (sess) {
+        sess.state = 'error';
+        sess.description = err.message;
+        this.emitStateChange(sess);
+      }
+      this.emit('error', { sessionId, error: err.message });
+    });
+  }
+
   private handleStdoutData(sessionId: string, chunk: Buffer): void {
     const session = this.sessions.get(sessionId);
     if (!session) return;
@@ -320,6 +438,12 @@ export class ClaudeSessionManager extends EventEmitter {
       try {
         const parsed = JSON.parse(trimmed);
 
+        // Handle control_request from --permission-prompt-tool stdio
+        if (parsed.type === 'control_request') {
+          this.handleControlRequest(sessionId, parsed);
+          continue;
+        }
+
         // CLI wraps API events in {"type":"stream_event","event":{...}}
         if (parsed.type === 'stream_event' && parsed.event) {
           const event: ClaudeJsonEvent = parsed.event;
@@ -327,7 +451,6 @@ export class ClaudeSessionManager extends EventEmitter {
           this.emit('event', { sessionId, event });
         } else if (parsed.type === 'result') {
           // Final result — extract session ID for resume
-          // Don't emit message_stop here; the stream_event flow already emits it
           if (parsed.session_id) {
             const sess = this.sessions.get(sessionId);
             if (sess) sess.claudeSessionId = parsed.session_id;
@@ -335,6 +458,8 @@ export class ClaudeSessionManager extends EventEmitter {
           } else {
             log.warn(`[ClaudeSession] Result line has no session_id:`, JSON.stringify(parsed).substring(0, 200));
           }
+          // Close stdin after receiving the result — session turn is done
+          try { session.process?.stdin?.end(); } catch { /* ignore */ }
         } else if (parsed.type === 'system' || parsed.type === 'rate_limit_event') {
           // System events (hooks, init) and rate limits — skip
         } else if (parsed.type === 'assistant') {
@@ -348,6 +473,123 @@ export class ClaudeSessionManager extends EventEmitter {
         // Non-JSON output (shouldn't happen in stream-json mode, but be safe)
         log.debug(`[ClaudeSession] Non-JSON line for ${sessionId}: ${trimmed.substring(0, 100)}`);
       }
+    }
+  }
+
+  /**
+   * Handle a control_request from Claude Code's permission-prompt-tool stdio protocol.
+   *
+   * Expected format:
+   * {
+   *   "type": "control_request",
+   *   "request_id": "req_abc123",
+   *   "request": {
+   *     "subtype": "can_use_tool",
+   *     "tool_name": "Bash",
+   *     "input": { "command": "..." },
+   *     "decision_reason": "...",
+   *     "tool_use_id": "toolu_xyz"
+   *   }
+   * }
+   */
+  private handleControlRequest(sessionId: string, parsed: any): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+
+    session.controlProtocolActive = true;
+
+    const request = parsed.request;
+    if (!request || request.subtype !== 'can_use_tool') {
+      log.warn(`[ClaudeSession] Unknown control_request subtype: ${request?.subtype}`);
+      // Respond with allow to avoid blocking
+      this.sendControlResponse(session, parsed.request_id, 'allow');
+      return;
+    }
+
+    const toolName = request.tool_name;
+    const toolInput = request.input || {};
+    const toolUseId = request.tool_use_id || '';
+
+    // Check saved permission rules first
+    const evalResult = evaluatePermission(toolName, toolInput, sessionId, session.groupId);
+    if (evalResult.matched) {
+      log.info(`[ClaudeSession] Permission auto-resolved: ${evalResult.decision} for ${toolName}`);
+      this.sendControlResponse(
+        session,
+        parsed.request_id,
+        evalResult.decision,
+        evalResult.decision === 'deny' ? 'Blocked by saved rule' : undefined,
+        evalResult.decision === 'allow' ? toolInput : undefined
+      );
+      return;
+    }
+
+    // No saved rule — prompt the user via the renderer
+    const requestId = parsed.request_id;
+
+    const timer = setTimeout(() => {
+      log.warn(`[ClaudeSession] Permission request ${requestId} timed out, auto-denying`);
+      session.pendingPermissions.delete(requestId);
+      this.sendControlResponse(session, requestId, 'deny', 'Permission request timed out');
+
+      if (session.state === 'waiting_permission' && session.pendingPermissions.size === 0) {
+        session.state = 'tool_executing';
+        session.description = 'Working...';
+        this.emitStateChange(session);
+      }
+    }, ClaudeSessionManager.PERMISSION_TIMEOUT_MS);
+
+    session.pendingPermissions.set(requestId, {
+      requestId,
+      resolve: () => {}, // Not used for control protocol path — response sent directly via stdin
+      timer,
+    });
+
+    session.state = 'waiting_permission';
+    session.description = `Waiting: approve ${toolName}`;
+    this.emitStateChange(session);
+
+    const permRequest: PermissionRequest = {
+      requestId,
+      sessionId,
+      toolName,
+      toolInput,
+      toolUseId,
+      decisionReason: request.decision_reason,
+    };
+    this.emit('permission-request', { sessionId, request: permRequest });
+  }
+
+  /**
+   * Send a control_response back to Claude Code via stdin.
+   */
+  private sendControlResponse(
+    session: ManagedSession,
+    requestId: string,
+    decision: 'allow' | 'deny',
+    message?: string,
+    updatedInput?: Record<string, unknown>
+  ): void {
+    if (!session.process?.stdin?.writable) {
+      log.warn(`[ClaudeSession] Cannot send control_response: stdin not writable for session ${session.id}`);
+      return;
+    }
+
+    const response: any = {
+      type: 'control_response',
+      id: requestId,
+      result: decision === 'allow'
+        ? { behavior: 'allow', updatedInput }
+        : { behavior: 'deny', message: message || 'User denied' },
+    };
+
+    const line = JSON.stringify(response) + '\n';
+    log.info(`[ClaudeSession] Sending control_response for ${session.id}: ${decision} (${requestId})`);
+
+    try {
+      session.process.stdin.write(line);
+    } catch (err) {
+      log.error(`[ClaudeSession] Failed to write control_response:`, err);
     }
   }
 
