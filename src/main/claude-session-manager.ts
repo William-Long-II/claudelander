@@ -107,6 +107,9 @@ export class ClaudeSessionManager extends EventEmitter {
       args.push(...configToCliArgs(configForArgs));
     }
 
+    // Prompt goes as the final positional CLI argument
+    args.push(prompt);
+
     log.info(`[ClaudeSession] Spawning: claude ${args.join(' ').substring(0, 120)}`);
     log.info(`[ClaudeSession] CWD: ${effectiveCwd}, prompt length: ${prompt.length}`);
 
@@ -120,9 +123,9 @@ export class ClaudeSessionManager extends EventEmitter {
 
     log.info(`[ClaudeSession] Process spawned, PID: ${proc.pid}`);
 
-    // Write prompt as stream-json input, keep stdin OPEN for control protocol responses
-    proc.stdin!.write(JSON.stringify({ type: 'user_message', content: prompt }) + '\n');
-    // DO NOT call proc.stdin!.end() — stdin stays open for permission responses
+    // stdin stays open for control protocol responses (permission-prompt-tool stdio)
+    // DO NOT write prompt to stdin — it's passed as a CLI argument
+    // DO NOT call proc.stdin!.end() — stdin must remain open for control_response messages
 
     const session: ManagedSession = {
       id: sessionId,
@@ -171,6 +174,9 @@ export class ClaudeSessionManager extends EventEmitter {
       args.push(...configToCliArgs(configForArgs));
     }
 
+    // Prompt goes as the final positional CLI argument
+    args.push(prompt);
+
     const proc = spawn('claude', args, {
       cwd: session.cwd,
       env: cleanEnvForClaude(),
@@ -179,8 +185,7 @@ export class ClaudeSessionManager extends EventEmitter {
       shell: IS_WINDOWS,
     });
 
-    // Write prompt as stream-json input, keep stdin OPEN for control protocol responses
-    proc.stdin!.write(JSON.stringify({ type: 'user_message', content: prompt }) + '\n');
+    // stdin stays open for control protocol responses — prompt is passed as CLI arg
 
     session.process = proc;
     session.state = 'thinking';
@@ -428,7 +433,6 @@ export class ClaudeSessionManager extends EventEmitter {
     const args = [
       '-p',
       '--output-format', 'stream-json',
-      '--input-format', 'stream-json',
       '--verbose',
       '--include-partial-messages',
     ];
