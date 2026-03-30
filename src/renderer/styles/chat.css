@@ -978,3 +978,369 @@
   color: var(--text-tertiary, #666);
   flex-shrink: 0;
 }
+
+/* =============================================================================
+   Permission Prompt (3.1)
+   ============================================================================= */
+
+.permission-prompt {
+  margin: 12px 60px 12px 60px;
+  background: var(--bg-secondary, #252536);
+  border: 1px solid #d4a04480;
+  border-radius: 8px;
+  padding: 12px 16px;
+  animation: permission-fade-in 0.3s ease;
+}
+
+@keyframes permission-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.permission-prompt-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.permission-prompt-icon {
+  font-size: 1rem;
+}
+
+.permission-prompt-title {
+  font-weight: 600;
+  color: #d0a060;
+  flex: 1;
+}
+
+.permission-prompt-timer {
+  font-size: 0.75rem;
+  color: var(--text-tertiary, #707080);
+  font-variant-numeric: tabular-nums;
+}
+
+.permission-prompt-body {
+  margin-bottom: 10px;
+}
+
+.permission-prompt-tool {
+  font-size: 0.85rem;
+  color: var(--text-primary, #e0e0f0);
+  margin-bottom: 6px;
+}
+
+.permission-prompt-tool strong {
+  color: #61afef;
+}
+
+.permission-prompt-input {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color, #2e2e3e);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #a0a0b0);
+  overflow-x: auto;
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+.permission-prompt-reason {
+  font-size: 0.75rem;
+  color: var(--text-tertiary, #707080);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.permission-prompt-scope {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.permission-prompt-scope-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #a0a0b0);
+}
+
+.permission-prompt-scope-option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-primary, #e0e0f0);
+  cursor: pointer;
+}
+
+.permission-prompt-scope-option input[type="radio"] {
+  accent-color: #61afef;
+}
+
+.permission-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.permission-prompt-deny,
+.permission-prompt-allow {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.permission-prompt-deny {
+  background: rgba(255, 80, 80, 0.15);
+  color: #ff6060;
+  border: 1px solid rgba(255, 80, 80, 0.3);
+}
+
+.permission-prompt-deny:hover {
+  background: rgba(255, 80, 80, 0.25);
+}
+
+.permission-prompt-allow {
+  background: rgba(80, 180, 80, 0.15);
+  color: #60d060;
+  border: 1px solid rgba(80, 180, 80, 0.3);
+}
+
+.permission-prompt-allow:hover {
+  background: rgba(80, 180, 80, 0.25);
+}
+
+/* ============================================================
+   Sandboxed Badge
+   ============================================================ */
+
+.sandboxed-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(250, 179, 135, 0.15);
+  color: #fab387;
+  border: 1px solid rgba(250, 179, 135, 0.3);
+  cursor: default;
+}
+
+/* ============================================================
+   Diff Review Panel (Sandbox)
+   ============================================================ */
+
+.diff-review-panel {
+  margin: 12px 16px;
+  border: 1px solid rgba(137, 180, 250, 0.3);
+  border-radius: 8px;
+  background: rgba(30, 30, 46, 0.9);
+  overflow: hidden;
+  animation: fadeIn 0.3s ease;
+}
+
+.diff-review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(137, 180, 250, 0.08);
+  border-bottom: 1px solid rgba(137, 180, 250, 0.15);
+}
+
+.diff-review-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary, #e0e0f0);
+}
+
+.diff-review-icon {
+  margin-right: 8px;
+}
+
+.diff-review-summary {
+  display: flex;
+  gap: 12px;
+  font-size: 0.75rem;
+}
+
+.diff-stat {
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.diff-stat.added {
+  background: rgba(166, 227, 161, 0.15);
+  color: #a6e3a1;
+}
+
+.diff-stat.modified {
+  background: rgba(137, 180, 250, 0.15);
+  color: #89b4fa;
+}
+
+.diff-stat.deleted {
+  background: rgba(243, 139, 168, 0.15);
+  color: #f38ba8;
+}
+
+.diff-stat.total {
+  background: rgba(160, 160, 176, 0.15);
+  color: var(--text-secondary, #a0a0b0);
+}
+
+.diff-review-select-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.diff-select-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary, #a0a0b0);
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.diff-select-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.diff-select-count {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--text-secondary, #a0a0b0);
+}
+
+.diff-review-files {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.diff-file-entry {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.diff-file-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.diff-file-header:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.diff-file-checkbox {
+  display: flex;
+  align-items: center;
+}
+
+.diff-file-checkbox input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: #89b4fa;
+}
+
+.diff-file-status {
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  width: 16px;
+  text-align: center;
+}
+
+.diff-file-path {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--text-primary, #e0e0f0);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-file-expand {
+  color: var(--text-secondary, #a0a0b0);
+  font-size: 0.7rem;
+}
+
+.diff-file-content {
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.diff-unified {
+  margin: 0;
+  padding: 8px 16px;
+  font-family: monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-secondary, #a0a0b0);
+  overflow-x: auto;
+  white-space: pre;
+  tab-size: 4;
+}
+
+.diff-review-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.diff-action-btn {
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+}
+
+.diff-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.diff-action-btn.reject {
+  background: rgba(243, 139, 168, 0.12);
+  color: #f38ba8;
+  border-color: rgba(243, 139, 168, 0.3);
+}
+
+.diff-action-btn.reject:hover:not(:disabled) {
+  background: rgba(243, 139, 168, 0.22);
+}
+
+.diff-action-btn.apply {
+  background: rgba(166, 227, 161, 0.12);
+  color: #a6e3a1;
+  border-color: rgba(166, 227, 161, 0.3);
+}
+
+.diff-action-btn.apply:hover:not(:disabled) {
+  background: rgba(166, 227, 161, 0.22);
+}

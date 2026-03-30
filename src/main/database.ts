@@ -200,6 +200,22 @@ function initializeTables(database: Database.Database): void {
     console.log('FTS5 setup (may already exist):', e);
   }
 
+  // Permission rules table (3.1)
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS permission_rules (
+      id TEXT PRIMARY KEY,
+      scope TEXT NOT NULL CHECK(scope IN ('session', 'group', 'global')),
+      scope_id TEXT,
+      tool_pattern TEXT NOT NULL,
+      decision TEXT NOT NULL CHECK(decision IN ('allow', 'deny')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_by TEXT DEFAULT 'user'
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_permission_rules_scope ON permission_rules(scope, scope_id);
+    CREATE INDEX IF NOT EXISTS idx_permission_rules_pattern ON permission_rules(tool_pattern);
+  `);
+
   // Insert default group if none exists
   const groupCount = database.prepare('SELECT COUNT(*) as count FROM groups').get() as { count: number };
   if (groupCount.count === 0) {

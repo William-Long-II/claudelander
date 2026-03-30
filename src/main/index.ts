@@ -28,6 +28,9 @@ import { openInEditor, detectAvailableEditors, getEditorOptions, EditorType } fr
 import { claudeSessionManager } from './claude-session-manager';
 import { resolveClaudeConfig, buildKnowledgeContext } from './claude-config-resolver';
 import { extractKnowledgeCandidates } from './knowledge/extractor';
+import * as permissionRulesRepo from './repositories/permission-rules';
+import { inferToolPattern } from './permission-evaluator';
+import { worktreeManager } from './worktree-manager';
 import { detectDomains } from './knowledge/domain-tagger';
 import { findPromotionCandidates, applyDecayPass } from './knowledge/promotion-engine';
 import * as skillRegistry from './skill-registry';
@@ -258,6 +261,17 @@ function createWindow(): void {
   // Mark all sessions as stopped on startup (PTY processes don't survive restarts)
   sessionsRepo.markAllSessionsStopped();
 
+  // Clean up orphaned worktrees from previous crashes (3.1 Phase 2)
+  try {
+    const allGroups = groupsRepo.getAllGroups();
+    const projectDirs = [...new Set(allGroups.map(g => g.workingDir).filter(Boolean))];
+    if (projectDirs.length > 0) {
+      worktreeManager.cleanupOrphaned(projectDirs);
+    }
+  } catch (err) {
+    log.warn('[Worktree] Failed to clean orphaned worktrees:', err);
+  }
+
   // Restore saved window bounds or use defaults
   const savedBounds = prefsRepo.getWindowBounds();
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
@@ -423,6 +437,7 @@ function createWindow(): void {
     // Map 3.0 SessionState3 to legacy state for DB and notifications
     const legacyState = status.state === 'idle' ? 'idle'
       : status.state === 'error' ? 'error'
+      : status.state === 'waiting_permission' ? 'waiting'
       : 'working';
     try {
       sessionsRepo.updateSession(sessionId, {
@@ -450,6 +465,85 @@ function createWindow(): void {
 
   claudeSessionManager.on('error', ({ sessionId, error }: { sessionId: string; error: string }) => {
     mainWindow?.webContents.send('claude:error', sessionId, error);
+  });
+
+  // Permission request forwarding (3.1)
+  claudeSessionManager.on('permission-request', ({ sessionId, request }: { sessionId: string; request: any }) => {
+    log.info(`[Permissions] Forwarding permission request to renderer: ${request.toolName} (${request.requestId})`);
+    mainWindow?.webContents.send('claude:permissionRequest', sessionId, request);
+  });
+
+  // Diff review forwarding (3.1 Phase 2 — fullAuto sandbox)
+  claudeSessionManager.on('diff-review', ({ sessionId, diffData }: { sessionId: string; diffData: any }) => {
+    log.info(`[Sandbox] Forwarding diff review to renderer: ${diffData.files.length} files for session ${sessionId}`);
+    mainWindow?.webContents.send('claude:diffReview', sessionId, diffData);
+  });
+
+  // Permission response handler (3.1)
+  ipcMain.handle('claude:respondPermission', async (_event, sessionId: string, requestId: string, decision: 'allow' | 'deny', scope: string, toolPattern?: string) => {
+    log.info(`[Permissions] User responded: ${decision} (scope: ${scope}) for ${requestId}`);
+
+    // Persist the decision if scope is not 'once'
+    if (scope !== 'once' && toolPattern) {
+      const session = sessionsRepo.getAllSessions().find(s => s.id === sessionId);
+      try {
+        permissionRulesRepo.createRule({
+          id: randomUUID(),
+          scope: scope as 'session' | 'group' | 'global',
+          scopeId: scope === 'session' ? sessionId : scope === 'group' ? (session?.groupId || null) : null,
+          toolPattern,
+          decision,
+          createdBy: 'user',
+        });
+        log.info(`[Permissions] Saved ${decision} rule: ${toolPattern} (${scope})`);
+      } catch (err) {
+        log.error(`[Permissions] Failed to save rule:`, err);
+      }
+    }
+
+    claudeSessionManager.respondToPermission(sessionId, requestId, decision);
+  });
+
+  // Permission rules management (3.1)
+  ipcMain.handle('permission:getRules', async () => {
+    return permissionRulesRepo.getAllRules();
+  });
+
+  ipcMain.handle('permission:deleteRule', async (_event, id: string) => {
+    permissionRulesRepo.deleteRule(id);
+  });
+
+  ipcMain.handle('permission:clearAll', async () => {
+    permissionRulesRepo.clearAllRules();
+  });
+
+  // Worktree / Sandbox IPC Handlers (3.1 Phase 2)
+  ipcMain.handle('sandbox:applyChanges', async (_event, sessionId: string, selectedFiles?: string[]) => {
+    log.info(`[Sandbox] Applying changes for session ${sessionId}, files: ${selectedFiles?.length ?? 'all'}`);
+    try {
+      const result = worktreeManager.applyChanges(sessionId, selectedFiles);
+      // Clean up the worktree after applying
+      worktreeManager.cleanup(sessionId);
+      return result;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.error(`[Sandbox] Failed to apply changes:`, err);
+      throw new Error(msg);
+    }
+  });
+
+  ipcMain.handle('sandbox:rejectChanges', async (_event, sessionId: string) => {
+    log.info(`[Sandbox] Rejecting changes for session ${sessionId}`);
+    worktreeManager.cleanup(sessionId);
+    return { rejected: true };
+  });
+
+  ipcMain.handle('sandbox:isFullAuto', async (_event, sessionId: string) => {
+    return claudeSessionManager.isFullAutoSession(sessionId);
+  });
+
+  ipcMain.handle('sandbox:getWorktreePath', async (_event, sessionId: string) => {
+    return claudeSessionManager.getWorktreePath(sessionId);
   });
 
   // Save window bounds on resize/move

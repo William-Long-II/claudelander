@@ -7,7 +7,7 @@
  *
  * Usage: node claudelander-hook.js <hook-type> [--group-id <id>] [--session-id <id>]
  *
- * Hook types: PostToolUse, Stop, Notification
+ * Hook types: PreToolUse, PostToolUse, Stop, Notification
  */
 
 const API_BASE = process.env.CLAUDELANDER_API_URL || 'http://127.0.0.1:8443';
@@ -136,6 +136,63 @@ function countToolUses(transcript: Array<{ role: string; content: string }> | un
 }
 
 /**
+ * Process PreToolUse hook (permission approval fallback for 3.1)
+ *
+ * This hook is invoked BEFORE a tool executes. It calls ClaudeLander's
+ * pre-tool-use API which long-polls until the user approves/denies.
+ *
+ * Return values:
+ *   { "allow": true } on stdout → tool proceeds
+ *   Exit code 2 → tool is blocked
+ */
+async function handlePreToolUse(input: HookInput, groupId?: string, sessionId?: string): Promise<void> {
+  const toolName = input.tool_name;
+  const toolInput = input.tool_input;
+
+  if (!toolName) {
+    // No tool name, allow by default
+    console.log(JSON.stringify({ continue: true }));
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/permissions/pre-tool-use`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tool_name: toolName,
+        tool_input: toolInput,
+        tool_use_id: (input as any).tool_use_id || '',
+        session_id: sessionId || input.session_id,
+        group_id: groupId,
+      }),
+    });
+
+    if (!response.ok) {
+      // API error — allow by default to avoid blocking
+      console.error(`[ClaudeLander Hook] PreToolUse API error: ${response.status}`);
+      console.log(JSON.stringify({ continue: true }));
+      return;
+    }
+
+    const result = await response.json() as { allow?: boolean; deny?: boolean; message?: string };
+
+    if (result.deny) {
+      // User denied — exit with code 2 to block the tool
+      process.exit(2);
+    } else {
+      // User allowed (or auto-allowed by saved rule)
+      console.log(JSON.stringify({ allow: true }));
+    }
+  } catch (error) {
+    // Network error — ClaudeLander might not be running, allow by default
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[ClaudeLander Hook] PreToolUse failed: ${message}`);
+    console.log(JSON.stringify({ continue: true }));
+  }
+}
+
+/**
  * Process PostToolUse hook
  */
 async function handlePostToolUse(input: HookInput, groupId?: string, sessionId?: string): Promise<void> {
@@ -226,6 +283,10 @@ async function main(): Promise<void> {
 
   // Process based on hook type
   switch (hookType) {
+    case 'PreToolUse':
+      await handlePreToolUse(input, groupId, sessionId);
+      // handlePreToolUse outputs its own response — do not output '{}'
+      return;
     case 'PostToolUse':
       await handlePostToolUse(input, groupId, sessionId);
       break;

@@ -10,8 +10,9 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  type SettingsTab = 'general' | 'appearance' | 'sound' | 'integrations' | 'mobile' | 'claude';
+  type SettingsTab = 'general' | 'appearance' | 'sound' | 'integrations' | 'mobile' | 'claude' | 'permissions';
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [permissionRules, setPermissionRules] = useState<any[]>([]);
 
   // Mobile API state
   const [apiStatus, setApiStatus] = useState<ApiServerStatus>({ running: false });
@@ -552,6 +553,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             >
               Claude
             </button>
+            <button
+              className={`settings-nav-item ${activeTab === 'permissions' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('permissions');
+                window.electronAPI.getPermissionRules().then(setPermissionRules).catch(() => {});
+              }}
+            >
+              Permissions
+            </button>
           </nav>
 
           <div className="settings-content">
@@ -1042,6 +1052,68 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   config={claudeDefaults}
                   onChange={handleClaudeDefaultsChange}
                 />
+              </div>
+            )}
+
+            {activeTab === 'permissions' && (
+              <div className="settings-section">
+                <h3>Permission Rules</h3>
+                <p className="settings-hint" style={{ marginBottom: '12px' }}>
+                  Saved tool approval decisions. These auto-resolve permission prompts without asking.
+                </p>
+
+                {permissionRules.length === 0 ? (
+                  <p className="settings-hint">No saved permission rules. Rules are created when you approve or deny tool calls in the chat.</p>
+                ) : (
+                  <>
+                    <table className="permission-rules-table">
+                      <thead>
+                        <tr>
+                          <th>Decision</th>
+                          <th>Tool Pattern</th>
+                          <th>Scope</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {permissionRules.map((rule: any) => (
+                          <tr key={rule.id}>
+                            <td>
+                              <span className={`permission-decision ${rule.decision}`}>
+                                {rule.decision}
+                              </span>
+                            </td>
+                            <td><code>{rule.toolPattern}</code></td>
+                            <td>{rule.scope}{rule.scopeId ? ` (${rule.scopeId.substring(0, 8)})` : ''}</td>
+                            <td>
+                              <button
+                                className="permission-rule-delete"
+                                onClick={async () => {
+                                  await window.electronAPI.deletePermissionRule(rule.id);
+                                  setPermissionRules(prev => prev.filter((r: any) => r.id !== rule.id));
+                                }}
+                                title="Delete rule"
+                              >
+                                &times;
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    <button
+                      className="permission-clear-all"
+                      onClick={async () => {
+                        await window.electronAPI.clearPermissionRules();
+                        setPermissionRules([]);
+                      }}
+                      style={{ marginTop: '12px' }}
+                    >
+                      Clear All Rules
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
