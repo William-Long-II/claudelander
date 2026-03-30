@@ -5,13 +5,24 @@ import * as prefsRepo from './repositories/preferences';
 import * as knowledgeRepo from './repositories/knowledge';
 import log from 'electron-log';
 
-// Shell metacharacters that could enable command injection when spawn uses shell: true
-const SHELL_UNSAFE = /[&|;<>`$"'\\(){}!\n\r]/;
+// cross-spawn handles shell quoting, so we only guard against control characters
+// and flag injection for enum-like values (model, effort, permissionMode)
+const CONTROL_CHARS = /[\x00-\x08\x0b\x0c\x0e-\x1f]/;
+const ENUM_UNSAFE = /[^a-zA-Z0-9._-]/;
 
-/** Reject strings containing shell metacharacters (C1 — command injection prevention) */
-function sanitizeArg(value: string, fieldName: string): string | null {
-  if (SHELL_UNSAFE.test(value)) {
+/** Reject enum-like values containing anything outside alphanumeric/dot/dash */
+function sanitizeEnumArg(value: string, fieldName: string): string | null {
+  if (ENUM_UNSAFE.test(value)) {
     log.warn(`[ClaudeConfig] Rejecting unsafe ${fieldName} value: ${value.substring(0, 50)}`);
+    return null;
+  }
+  return value;
+}
+
+/** Reject freeform text values containing control characters */
+function sanitizeTextArg(value: string, fieldName: string): string | null {
+  if (CONTROL_CHARS.test(value)) {
+    log.warn(`[ClaudeConfig] Rejecting ${fieldName} value with control characters`);
     return null;
   }
   return value;
@@ -56,13 +67,13 @@ export function resolveClaudeConfig(sessionId: string): ClaudeConfig {
 export function configToCliArgs(config: ClaudeConfig): string[] {
   const args: string[] = [];
 
-  const model = config.model && sanitizeArg(config.model, 'model');
+  const model = config.model && sanitizeEnumArg(config.model, 'model');
   if (model) args.push('--model', model);
 
-  const effort = config.effort && sanitizeArg(config.effort, 'effort');
+  const effort = config.effort && sanitizeEnumArg(config.effort, 'effort');
   if (effort) args.push('--effort', effort);
 
-  const perm = config.permissionMode && sanitizeArg(config.permissionMode, 'permissionMode');
+  const perm = config.permissionMode && sanitizeEnumArg(config.permissionMode, 'permissionMode');
   // 'fullAuto' is handled by ClaudeSessionManager (worktree + --dangerously-skip-permissions)
   if (perm && perm !== 'fullAuto') args.push('--permission-mode', perm);
 
@@ -70,15 +81,15 @@ export function configToCliArgs(config: ClaudeConfig): string[] {
     args.push('--max-budget-usd', String(config.maxBudgetUsd));
   }
 
-  const sysPrompt = config.systemPrompt && sanitizeArg(config.systemPrompt, 'systemPrompt');
+  const sysPrompt = config.systemPrompt && sanitizeTextArg(config.systemPrompt, 'systemPrompt');
   if (sysPrompt) args.push('--append-system-prompt', sysPrompt);
 
   if (config.allowedTools && config.allowedTools.length > 0) {
-    const safe = config.allowedTools.filter(t => sanitizeArg(t, 'allowedTool') !== null);
+    const safe = config.allowedTools.filter(t => sanitizeEnumArg(t, 'allowedTool') !== null);
     if (safe.length > 0) args.push('--allowedTools', safe.join(','));
   }
   if (config.disallowedTools && config.disallowedTools.length > 0) {
-    const safe = config.disallowedTools.filter(t => sanitizeArg(t, 'disallowedTool') !== null);
+    const safe = config.disallowedTools.filter(t => sanitizeEnumArg(t, 'disallowedTool') !== null);
     if (safe.length > 0) args.push('--disallowedTools', safe.join(','));
   }
 

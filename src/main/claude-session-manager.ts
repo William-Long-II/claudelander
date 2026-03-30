@@ -1,4 +1,5 @@
-import { spawn, ChildProcess, execSync } from 'child_process';
+import { ChildProcess, execSync } from 'child_process';
+import spawn from 'cross-spawn';
 import { EventEmitter } from 'events';
 import log from 'electron-log';
 import { ClaudeJsonEvent, SessionStatus, SessionState3, ClaudeConfig, PermissionRequest, DiffReviewData } from '../shared/types';
@@ -118,7 +119,6 @@ export class ClaudeSessionManager extends EventEmitter {
       env: cleanEnvForClaude(),
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
-      shell: IS_WINDOWS,
     });
 
     log.info(`[ClaudeSession] Process spawned, PID: ${proc.pid}`);
@@ -182,7 +182,6 @@ export class ClaudeSessionManager extends EventEmitter {
       env: cleanEnvForClaude(),
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
-      shell: IS_WINDOWS,
     });
 
     // stdin stays open for control protocol responses — prompt is passed as CLI arg
