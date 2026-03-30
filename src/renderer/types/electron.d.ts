@@ -30,6 +30,7 @@ import {
   KnowledgeEdge,
   KnowledgePromotion,
   SkillEntry,
+  DiffReviewData,
 } from '../../shared/types';
 
 export interface ElectronAPI {
@@ -221,6 +222,18 @@ export interface ElectronAPI {
   onClaudeStateChange: (callback: (sessionId: string, status: SessionStatus) => void) => () => void;
   onClaudeEnded: (callback: (sessionId: string) => void) => () => void;
   onClaudeError: (callback: (sessionId: string, error: string) => void) => () => void;
+  onClaudePermissionRequest: (callback: (sessionId: string, request: any) => void) => () => void;
+  claudeRespondPermission: (sessionId: string, requestId: string, decision: 'allow' | 'deny', scope: string, toolPattern?: string) => Promise<void>;
+  getPermissionRules: () => Promise<any[]>;
+  deletePermissionRule: (id: string) => Promise<void>;
+  clearPermissionRules: () => Promise<void>;
+
+  // Sandbox / Diff Review (3.1 Phase 2)
+  onClaudeDiffReview: (callback: (sessionId: string, diffData: DiffReviewData) => void) => () => void;
+  sandboxApplyChanges: (sessionId: string, selectedFiles?: string[]) => Promise<{ applied: string[]; errors: string[] }>;
+  sandboxRejectChanges: (sessionId: string) => Promise<{ rejected: boolean }>;
+  sandboxIsFullAuto: (sessionId: string) => Promise<boolean>;
+  sandboxGetWorktreePath: (sessionId: string) => Promise<string | null>;
 }
 
 declare global {

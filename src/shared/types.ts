@@ -3,6 +3,7 @@ export type SessionState = 'idle' | 'working' | 'waiting' | 'error' | 'stopped';
 export interface ClaudeConfig {
   model?: string;
   effort?: string;
+  /** 'default' | 'plan' | 'acceptEdits' | 'auto' | 'fullAuto' */
   permissionMode?: string;
   maxBudgetUsd?: number;
   systemPrompt?: string;
@@ -429,6 +430,73 @@ export interface ClaudeJsonEvent {
   [key: string]: any;
 }
 
+// =============================================================================
+// Permission System Types (3.1)
+// =============================================================================
+
+export type PermissionDecision = 'allow' | 'deny';
+export type PermissionScope = 'once' | 'session' | 'group' | 'global';
+
+/** A control_request from Claude Code's permission-prompt-tool stdio protocol */
+export interface PermissionRequest {
+  requestId: string;
+  sessionId: string;
+  toolName: string;
+  toolInput: Record<string, unknown>;
+  toolUseId: string;
+  decisionReason?: string;
+}
+
+/** User's response to a permission request */
+export interface PermissionResponse {
+  requestId: string;
+  decision: PermissionDecision;
+  scope: PermissionScope;
+  message?: string;
+}
+
+/** A persisted permission rule (stored in DB) */
+export interface PermissionRule {
+  id: string;
+  scope: 'session' | 'group' | 'global';
+  scopeId: string | null;
+  toolPattern: string;
+  decision: PermissionDecision;
+  createdAt: Date;
+  createdBy: 'user' | 'auto';
+}
+
+export interface PermissionRuleCreateInput {
+  id: string;
+  scope: 'session' | 'group' | 'global';
+  scopeId?: string | null;
+  toolPattern: string;
+  decision: PermissionDecision;
+  createdBy?: 'user' | 'auto';
+}
+
+// =============================================================================
+// Sandbox / Diff Review Types (3.1 Phase 2)
+// =============================================================================
+
+export interface DiffFile {
+  path: string;
+  status: 'added' | 'modified' | 'deleted' | 'renamed';
+  diff: string;
+}
+
+export interface DiffReviewData {
+  sessionId: string;
+  baseBranch: string;
+  worktreeBranch: string;
+  files: DiffFile[];
+  summary: {
+    added: number;
+    modified: number;
+    deleted: number;
+  };
+}
+
 export interface ClaudeToolUse {
   id: string;
   name: string;
@@ -482,7 +550,7 @@ export interface ConversationBranch {
 // Session State Updates (3.0)
 // =============================================================================
 
-export type SessionState3 = 'idle' | 'thinking' | 'tool_executing' | 'streaming' | 'error';
+export type SessionState3 = 'idle' | 'thinking' | 'tool_executing' | 'streaming' | 'waiting_permission' | 'error';
 
 export interface SessionStatus {
   state: SessionState3;

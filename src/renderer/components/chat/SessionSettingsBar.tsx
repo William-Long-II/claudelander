@@ -77,6 +77,7 @@ const PERMISSION_OPTIONS = [
   { value: 'plan', label: 'Plan' },
   { value: 'acceptEdits', label: 'Accept Edits' },
   { value: 'auto', label: 'Auto' },
+  { value: 'fullAuto', label: 'Full Auto (Sandboxed)' },
 ];
 
 export const SessionSettingsBar: React.FC<Props> = ({ config, onChange, disabled }) => {
