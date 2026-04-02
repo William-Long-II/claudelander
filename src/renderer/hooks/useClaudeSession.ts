@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ChatMessageData } from '../components/chat/ChatMessage';
-import type { PermissionRequest, DiffReviewData } from '../../shared/types';
+import type { PermissionRequest, DiffReviewData, SessionUsage } from '../../shared/types';
 
 interface UseClaudeSessionOptions {
   sessionId: string | null;
@@ -18,6 +18,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
   const [pendingPermissions, setPendingPermissions] = useState<PermissionRequest[]>([]);
   const [diffReview, setDiffReview] = useState<DiffReviewData | null>(null);
   const [isFullAuto, setIsFullAuto] = useState(false);
+  const [usage, setUsage] = useState<SessionUsage | null>(null);
   const contentRef = useRef('');
   const thinkingRef = useRef('');
   const toolCallsRef = useRef<any[]>([]);
@@ -272,8 +273,17 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
       setDiffReview(data);
     });
 
+    // Usage update subscription
+    const unsubUsage = window.electronAPI.onUsageUpdate((sid: string, u: SessionUsage) => {
+      if (sid !== sessionId) return;
+      setUsage(u);
+    });
+
     // Check if session is fullAuto
     window.electronAPI.sandboxIsFullAuto(sessionId).then(setIsFullAuto).catch(() => setIsFullAuto(false));
+
+    // Load existing usage data
+    window.electronAPI.usageGetSession(sessionId).then(u => setUsage(u)).catch(() => {});
 
     return () => {
       unsubEvent();
@@ -281,6 +291,7 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
       unsubEnded();
       unsubPermission();
       unsubDiffReview();
+      unsubUsage();
     };
   }, [sessionId]);
 
@@ -383,5 +394,6 @@ export function useClaudeSession({ sessionId, onKnowledgeSuggestion }: UseClaude
     isFullAuto,
     applyDiffChanges,
     rejectDiffChanges,
+    usage,
   };
 }

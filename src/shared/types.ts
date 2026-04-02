@@ -565,6 +565,66 @@ export interface SessionStatus {
 // Skill System Types (3.0)
 // =============================================================================
 
+// =============================================================================
+// Usage / Cost Tracking Types
+// =============================================================================
+
+/** Per-message token usage extracted from Claude API stream events */
+export interface MessageUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+}
+
+/** Accumulated usage for a session */
+export interface SessionUsage {
+  sessionId: string;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCacheReadTokens: number;
+  totalCacheCreationTokens: number;
+  totalCostUsd: number;
+  messageCount: number;
+  lastUpdatedAt: Date;
+}
+
+/** Pricing per million tokens for a model */
+export interface ModelPricing {
+  inputPerMillion: number;
+  outputPerMillion: number;
+  cacheReadPerMillion: number;
+  cacheCreationPerMillion: number;
+}
+
+/** Known model pricing (per million tokens, USD) */
+export const MODEL_PRICING: Record<string, ModelPricing> = {
+  'claude-opus-4-6':   { inputPerMillion: 15, outputPerMillion: 75, cacheReadPerMillion: 1.50, cacheCreationPerMillion: 18.75 },
+  'claude-sonnet-4-6': { inputPerMillion: 3, outputPerMillion: 15, cacheReadPerMillion: 0.30, cacheCreationPerMillion: 3.75 },
+  'claude-haiku-4-5':  { inputPerMillion: 1, outputPerMillion: 5, cacheReadPerMillion: 0.10, cacheCreationPerMillion: 1.25 },
+  // Aliases used by Claude Code
+  'opus':   { inputPerMillion: 15, outputPerMillion: 75, cacheReadPerMillion: 1.50, cacheCreationPerMillion: 18.75 },
+  'sonnet': { inputPerMillion: 3, outputPerMillion: 15, cacheReadPerMillion: 0.30, cacheCreationPerMillion: 3.75 },
+  'haiku':  { inputPerMillion: 1, outputPerMillion: 5, cacheReadPerMillion: 0.10, cacheCreationPerMillion: 1.25 },
+};
+
+/** Default pricing when model is unknown (use Sonnet pricing as safe default) */
+export const DEFAULT_PRICING: ModelPricing = MODEL_PRICING['sonnet'];
+
+/** Calculate cost in USD for a given usage and model */
+export function calculateCost(usage: MessageUsage, pricing: ModelPricing): number {
+  return (
+    (usage.inputTokens * pricing.inputPerMillion / 1_000_000) +
+    (usage.outputTokens * pricing.outputPerMillion / 1_000_000) +
+    (usage.cacheReadInputTokens * pricing.cacheReadPerMillion / 1_000_000) +
+    (usage.cacheCreationInputTokens * pricing.cacheCreationPerMillion / 1_000_000)
+  );
+}
+
+// =============================================================================
+// Skill System Types (3.0)
+// =============================================================================
+
 export type SkillType = 'command' | 'role' | 'skill';
 
 export interface SkillEntry {
