@@ -31,6 +31,7 @@ import {
   KnowledgePromotion,
   SkillEntry,
   DiffReviewData,
+  SessionUsage,
 } from '../../shared/types';
 
 export interface ElectronAPI {
@@ -209,6 +210,13 @@ export interface ElectronAPI {
   skillRefresh: () => Promise<SkillEntry[]>;
   skillInvoke: (sessionId: string, skillId: string, userArgs: string) => Promise<{ skillId: string; name: string }>;
   skillClear: (sessionId: string) => Promise<void>;
+
+  // Usage / Cost Tracking
+  usageGetSession: (sessionId: string) => Promise<SessionUsage | null>;
+  usageGetAll: () => Promise<SessionUsage[]>;
+  usageGetTotalCost: () => Promise<number>;
+  usageReset: (sessionId: string) => Promise<void>;
+  onUsageUpdate: (callback: (sessionId: string, usage: SessionUsage) => void) => () => void;
 
   // Claude Session API (3.0)
   claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) => Promise<void>;

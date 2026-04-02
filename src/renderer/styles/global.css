@@ -498,6 +498,18 @@ body {
   background: #094771;
 }
 
+.session.selected {
+  background: #1a3a4a;
+  border-left: 2px solid #61afef;
+  padding-left: 6px;
+}
+
+.session.selected.active {
+  background: #094771;
+  border-left: 2px solid #61afef;
+  padding-left: 6px;
+}
+
 .session-info {
   flex: 1;
   min-width: 0;

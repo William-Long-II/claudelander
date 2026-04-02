@@ -9,6 +9,7 @@ import * as chatMessagesRepo from './repositories/chat-messages';
 import * as templatesRepo from './repositories/session-templates';
 import * as branchesRepo from './repositories/conversation-branches';
 import * as knowledgeRepo from './repositories/knowledge';
+import * as usageRepo from './repositories/usage';
 import { randomUUID } from 'crypto';
 import { createApplicationMenu } from './menu';
 import { initAutoUpdater, checkForUpdatesManual, downloadUpdate } from './auto-updater';
@@ -467,6 +468,19 @@ function createWindow(): void {
     mainWindow?.webContents.send('claude:error', sessionId, error);
   });
 
+  // Usage tracking (cost/token)
+  claudeSessionManager.on('usage-update', ({ sessionId, usage, costUsd }: { sessionId: string; usage: any; costUsd: number }) => {
+    try {
+      usageRepo.addMessageUsage(sessionId, usage, costUsd);
+      const sessionUsage = usageRepo.getSessionUsage(sessionId);
+      if (sessionUsage) {
+        mainWindow?.webContents.send('claude:usageUpdate', sessionId, sessionUsage);
+      }
+    } catch (error) {
+      log.error('Failed to persist usage data:', error);
+    }
+  });
+
   // Permission request forwarding (3.1)
   claudeSessionManager.on('permission-request', ({ sessionId, request }: { sessionId: string; request: any }) => {
     log.info(`[Permissions] Forwarding permission request to renderer: ${request.toolName} (${request.requestId})`);
@@ -544,6 +558,23 @@ function createWindow(): void {
 
   ipcMain.handle('sandbox:getWorktreePath', async (_event, sessionId: string) => {
     return claudeSessionManager.getWorktreePath(sessionId);
+  });
+
+  // Usage / cost tracking
+  ipcMain.handle('usage:getSession', async (_event, sessionId: string) => {
+    return usageRepo.getSessionUsage(sessionId);
+  });
+
+  ipcMain.handle('usage:getAll', async () => {
+    return usageRepo.getAllSessionUsage();
+  });
+
+  ipcMain.handle('usage:getTotalCost', async () => {
+    return usageRepo.getTotalCost();
+  });
+
+  ipcMain.handle('usage:reset', async (_event, sessionId: string) => {
+    usageRepo.resetSessionUsage(sessionId);
   });
 
   // Save window bounds on resize/move

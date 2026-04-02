@@ -4,6 +4,7 @@ import { Session, SessionState } from '../../shared/types';
 export function useSessions() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   // Load sessions from database on mount
@@ -85,19 +86,6 @@ export function useSessions() {
     }
   }, []);
 
-  const removeSession = useCallback(async (id: string) => {
-    try {
-      await window.electronAPI.deleteDbSession(id);
-      setSessions(prev => prev.filter(s => s.id !== id));
-      if (activeSessionId === id) {
-        setActiveSessionId(null);
-      }
-    } catch (error) {
-      console.error('Failed to remove session:', error);
-      // Don't update state - DB failed
-    }
-  }, [activeSessionId]);
-
   const getSessionsByGroup = useCallback((groupId: string) => {
     return sessions.filter(s => s.groupId === groupId);
   }, [sessions]);
@@ -145,11 +133,68 @@ export function useSessions() {
     });
   }, []);
 
+  /** Toggle a session in/out of multi-select. First Ctrl+Click adds both active + clicked. */
+  const toggleSessionSelection = useCallback((sessionId: string) => {
+    setSelectedSessionIds(prev => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) {
+        next.delete(sessionId);
+        // If down to 1 or 0, exit multi-select
+        if (next.size <= 1) return new Set();
+        return next;
+      }
+      // First Ctrl+Click: seed the set with current active + clicked
+      if (next.size === 0 && activeSessionId && activeSessionId !== sessionId) {
+        next.add(activeSessionId);
+      }
+      next.add(sessionId);
+      return next;
+    });
+  }, [activeSessionId]);
+
+  /** Select all sessions in a group (for "Broadcast to Group") */
+  const selectGroupSessions = useCallback((groupId: string) => {
+    const groupSessions = sessions.filter(s => s.groupId === groupId);
+    if (groupSessions.length < 2) return;
+    setSelectedSessionIds(new Set(groupSessions.map(s => s.id)));
+    // Set active to first session in group as fallback
+    setActiveSessionId(groupSessions[0].id);
+  }, [sessions]);
+
+  /** Exit multi-select mode */
+  const clearMultiSelect = useCallback(() => {
+    setSelectedSessionIds(new Set());
+  }, []);
+
+  // Clean up removed sessions from selection
+  const removeSession = useCallback(async (id: string) => {
+    try {
+      await window.electronAPI.deleteDbSession(id);
+      setSessions(prev => prev.filter(s => s.id !== id));
+      if (activeSessionId === id) {
+        setActiveSessionId(null);
+      }
+      setSelectedSessionIds(prev => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        if (next.size <= 1) return new Set();
+        return next;
+      });
+    } catch (error) {
+      console.error('Failed to remove session:', error);
+    }
+  }, [activeSessionId]);
+
   return {
     sessions,
     loading,
     activeSessionId,
     setActiveSessionId,
+    selectedSessionIds,
+    toggleSessionSelection,
+    selectGroupSessions,
+    clearMultiSelect,
     createSession,
     updateSession,
     updateSessionState,
