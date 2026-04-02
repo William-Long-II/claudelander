@@ -1,7 +1,8 @@
-import { spawn, ChildProcess, execSync } from 'child_process';
+import { ChildProcess, execSync } from 'child_process';
+import spawn from 'cross-spawn';
 import { EventEmitter } from 'events';
 import log from 'electron-log';
-import { ClaudeJsonEvent, SessionStatus, SessionState3, ClaudeConfig, PermissionRequest, DiffReviewData } from '../shared/types';
+import { ClaudeJsonEvent, SessionStatus, SessionState3, ClaudeConfig, PermissionRequest, DiffReviewData, MessageUsage, ModelPricing, MODEL_PRICING, DEFAULT_PRICING, calculateCost } from '../shared/types';
 import { configToCliArgs } from './claude-config-resolver';
 import { evaluatePermission } from './permission-evaluator';
 import { evaluateGuard } from './filesystem-guard';
@@ -9,6 +10,58 @@ import { worktreeManager } from './worktree-manager';
 import * as crypto from 'crypto';
 
 const IS_WINDOWS = process.platform === 'win32';
+const IS_MAC = process.platform === 'darwin';
+
+/**
+ * On macOS, Electron apps launched from the Dock/Finder inherit a minimal PATH
+ * (typically just /usr/bin:/bin:/usr/sbin:/sbin). Tools installed via npm, nvm,
+ * Homebrew, etc. won't be found. Fix by reading the full PATH from the user's shell.
+ */
+function fixShellPath(): void {
+  if (IS_WINDOWS) return;
+  try {
+    const shell = process.env.SHELL || '/bin/zsh';
+    // -ilc: interactive login shell to source all profile/rc files
+    const shellPath = execSync(`${shell} -ilc 'echo -n "$PATH"'`, {
+      encoding: 'utf8',
+      timeout: 5000,
+      env: { ...process.env },
+    }).trim();
+    if (shellPath && shellPath !== process.env.PATH) {
+      // Merge: prepend shell paths that aren't already in the current PATH
+      const currentPaths = new Set((process.env.PATH || '').split(':'));
+      const newPaths = shellPath.split(':').filter(p => !currentPaths.has(p));
+      if (newPaths.length > 0) {
+        process.env.PATH = [...newPaths, process.env.PATH].join(':');
+        log.info(`[ClaudeSession] Fixed PATH: added ${newPaths.length} paths from shell`);
+      }
+    }
+  } catch (err) {
+    log.warn('[ClaudeSession] Failed to fix shell PATH:', (err as Error).message);
+  }
+}
+
+// Fix PATH immediately on module load
+fixShellPath();
+
+/** Cached resolved path to the claude binary */
+let resolvedClaudeBin: string = 'claude';
+
+function resolveClaudeBinary(): string {
+  if (resolvedClaudeBin !== 'claude') return resolvedClaudeBin;
+  try {
+    const cmd = IS_WINDOWS ? 'where claude' : 'which claude';
+    const result = execSync(cmd, { encoding: 'utf8', timeout: 5000 }).trim();
+    if (result) {
+      // `which` may return multiple lines; take the first
+      resolvedClaudeBin = result.split('\n')[0].trim();
+      log.info(`[ClaudeSession] Resolved claude binary: ${resolvedClaudeBin}`);
+    }
+  } catch {
+    log.warn('[ClaudeSession] Could not resolve claude binary path — using "claude" from PATH');
+  }
+  return resolvedClaudeBin;
+}
 
 function cleanEnvForClaude(): NodeJS.ProcessEnv {
   const env = { ...process.env };
@@ -42,6 +95,10 @@ interface ManagedSession {
   isFullAuto: boolean;
   /** Worktree path for sandboxed sessions */
   worktreePath: string | null;
+  /** Accumulated token usage for the current message turn */
+  currentMessageUsage: MessageUsage;
+  /** Model name for pricing lookup */
+  model: string | null;
 }
 
 /**
@@ -110,15 +167,14 @@ export class ClaudeSessionManager extends EventEmitter {
     // Prompt goes as the final positional CLI argument
     args.push(prompt);
 
-    log.info(`[ClaudeSession] Spawning: claude ${args.join(' ').substring(0, 120)}`);
+    log.info(`[ClaudeSession] Spawning: ${resolveClaudeBinary()} ${args.join(' ').substring(0, 120)}`);
     log.info(`[ClaudeSession] CWD: ${effectiveCwd}, prompt length: ${prompt.length}`);
 
-    const proc = spawn('claude', args, {
+    const proc = spawn(resolveClaudeBinary(), args, {
       cwd: effectiveCwd,
       env: cleanEnvForClaude(),
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
-      shell: IS_WINDOWS,
     });
 
     log.info(`[ClaudeSession] Process spawned, PID: ${proc.pid}`);
@@ -144,6 +200,8 @@ export class ClaudeSessionManager extends EventEmitter {
       pendingPermissions: new Map(),
       isFullAuto,
       worktreePath,
+      currentMessageUsage: { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 },
+      model: options?.claudeConfig?.model || null,
     };
 
     this.sessions.set(sessionId, session);
@@ -177,12 +235,11 @@ export class ClaudeSessionManager extends EventEmitter {
     // Prompt goes as the final positional CLI argument
     args.push(prompt);
 
-    const proc = spawn('claude', args, {
+    const proc = spawn(resolveClaudeBinary(), args, {
       cwd: session.cwd,
       env: cleanEnvForClaude(),
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
-      shell: IS_WINDOWS,
     });
 
     // stdin stays open for control protocol responses — prompt is passed as CLI arg
@@ -724,6 +781,18 @@ export class ClaudeSessionManager extends EventEmitter {
       case 'message_start':
         session.state = 'thinking';
         session.description = 'Thinking...';
+        // Reset per-message usage and extract initial counts
+        session.currentMessageUsage = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 };
+        if (event.message?.usage) {
+          session.currentMessageUsage.inputTokens = event.message.usage.input_tokens || 0;
+          session.currentMessageUsage.outputTokens = event.message.usage.output_tokens || 0;
+          session.currentMessageUsage.cacheReadInputTokens = event.message.usage.cache_read_input_tokens || 0;
+          session.currentMessageUsage.cacheCreationInputTokens = event.message.usage.cache_creation_input_tokens || 0;
+        }
+        // Capture model from message if available
+        if (event.message?.model) {
+          session.model = event.message.model;
+        }
         break;
 
       case 'content_block_start':
@@ -790,11 +859,19 @@ export class ClaudeSessionManager extends EventEmitter {
         break;
 
       case 'message_delta':
+        // Update output tokens from cumulative usage
+        if (event.usage?.output_tokens) {
+          session.currentMessageUsage.outputTokens = event.usage.output_tokens;
+        }
         if (event.delta?.stop_reason === 'end_turn') {
+          // Emit usage for this completed message
+          this.emitUsageUpdate(session);
           session.state = 'idle';
           session.description = 'Idle';
           session.filesBeingEdited = [];
         } else if (event.delta?.stop_reason === 'tool_use') {
+          // Emit usage for this message turn before tool execution
+          this.emitUsageUpdate(session);
           session.state = 'tool_executing';
         }
         break;
@@ -812,6 +889,27 @@ export class ClaudeSessionManager extends EventEmitter {
     }
 
     this.emitStateChange(session);
+  }
+
+  private emitUsageUpdate(session: ManagedSession): void {
+    const usage = session.currentMessageUsage;
+    // Skip if no tokens were recorded (e.g. empty message)
+    if (usage.inputTokens === 0 && usage.outputTokens === 0) return;
+
+    // Resolve pricing from model name
+    const modelKey = session.model || 'sonnet';
+    const pricing = MODEL_PRICING[modelKey] || DEFAULT_PRICING;
+    const costUsd = calculateCost(usage, pricing);
+
+    this.emit('usage-update', {
+      sessionId: session.id,
+      usage: { ...usage },
+      costUsd,
+      model: session.model,
+    });
+
+    // Reset for next message turn
+    session.currentMessageUsage = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 };
   }
 
   private emitStateChange(session: ManagedSession): void {

@@ -17,6 +17,7 @@ interface ShortcutHandlers {
   onCodeSearch?: () => void;
   onChatSearch?: () => void;
   onCommandPalette?: () => void;
+  onEscapeMultiSelect?: () => void;
 }
 
 export function useKeyboardShortcuts(handlers: ShortcutHandlers) {
@@ -84,6 +85,11 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers) {
     }
     if (e.key === 'Enter' && handlers.onSelect) {
       handlers.onSelect();
+    }
+
+    // Escape = Clear multi-select
+    if (e.key === 'Escape' && handlers.onEscapeMultiSelect) {
+      handlers.onEscapeMultiSelect();
     }
 
     // Ctrl+Shift+F = Code search

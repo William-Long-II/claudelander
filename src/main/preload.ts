@@ -334,6 +334,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   skillClear: (sessionId: string) =>
     ipcRenderer.invoke('skill:clear', sessionId),
 
+  // Usage / Cost Tracking
+  usageGetSession: (sessionId: string) =>
+    ipcRenderer.invoke('usage:getSession', sessionId),
+  usageGetAll: () =>
+    ipcRenderer.invoke('usage:getAll'),
+  usageGetTotalCost: () =>
+    ipcRenderer.invoke('usage:getTotalCost'),
+  usageReset: (sessionId: string) =>
+    ipcRenderer.invoke('usage:reset', sessionId),
+  onUsageUpdate: (callback: (sessionId: string, usage: any) => void) => {
+    const handler = (_: any, sessionId: string, usage: any) => callback(sessionId, usage);
+    ipcRenderer.on('claude:usageUpdate', handler);
+    return () => ipcRenderer.removeListener('claude:usageUpdate', handler);
+  },
+
   // Claude Session API (3.0)
   claudeStart: (sessionId: string, cwd: string, prompt: string, options?: any) =>
     ipcRenderer.invoke('claude:start', sessionId, cwd, prompt, options),

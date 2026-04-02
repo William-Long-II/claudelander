@@ -39,6 +39,7 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
     isFullAuto,
     applyDiffChanges,
     rejectDiffChanges,
+    usage,
   } = useClaudeSession({ sessionId });
 
   const chatPrefs = useChatPreferences();
@@ -193,6 +194,11 @@ export const ChatContainer: React.FC<Props> = ({ sessionId, sessionName, working
         {status && (
           <span className={`chat-status ${status.state}`}>
             {status.description}
+          </span>
+        )}
+        {usage && usage.totalCostUsd > 0 && (
+          <span className="chat-cost" title={`${usage.totalInputTokens.toLocaleString()} input + ${usage.totalOutputTokens.toLocaleString()} output tokens across ${usage.messageCount} messages`}>
+            ${usage.totalCostUsd < 0.01 ? usage.totalCostUsd.toFixed(4) : usage.totalCostUsd.toFixed(2)}
           </span>
         )}
         {sessionId && (

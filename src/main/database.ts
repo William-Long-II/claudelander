@@ -216,6 +216,20 @@ function initializeTables(database: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_permission_rules_pattern ON permission_rules(tool_pattern);
   `);
 
+  // Session usage tracking table
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS session_usage (
+      session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+      total_input_tokens INTEGER DEFAULT 0,
+      total_output_tokens INTEGER DEFAULT 0,
+      total_cache_read_tokens INTEGER DEFAULT 0,
+      total_cache_creation_tokens INTEGER DEFAULT 0,
+      total_cost_usd REAL DEFAULT 0,
+      message_count INTEGER DEFAULT 0,
+      last_updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Insert default group if none exists
   const groupCount = database.prepare('SELECT COUNT(*) as count FROM groups').get() as { count: number };
   if (groupCount.count === 0) {

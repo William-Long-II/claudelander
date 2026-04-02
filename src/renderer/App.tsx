@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { ChatContainer } from './components/chat/ChatContainer';
+import { OrchestratorView } from './components/orchestrator/OrchestratorView';
 import ContextMenu, { MenuItem } from './components/ContextMenu';
 import { ShareModal } from './components/ShareModal';
 import { JoinSessionModal } from './components/JoinSessionModal';
@@ -135,6 +136,10 @@ const App: React.FC = () => {
     loading: sessionsLoading,
     activeSessionId,
     setActiveSessionId,
+    selectedSessionIds,
+    toggleSessionSelection,
+    selectGroupSessions,
+    clearMultiSelect,
     createSession,
     updateSession,
     updateSessionState,
@@ -354,6 +359,8 @@ const App: React.FC = () => {
         { label: 'Rename', onClick: () => handleStartEditGroup(groupId, groupName) },
         { label: 'Set Working Directory', onClick: () => handleSetGroupDirectory(groupId) },
         { label: 'New Sub-Group', onClick: () => handleCreateSubGroup(groupId), disabled: !!groups.find(g => g.id === groupId)?.parentId },
+        { label: 'separator', onClick: () => {}, separator: true },
+        { label: 'Broadcast to Group', onClick: () => selectGroupSessions(groupId), disabled: sessionsInGroup.length < 2 },
         { label: 'separator', onClick: () => {}, separator: true },
         {
           label: 'Delete Group',
@@ -655,12 +662,19 @@ const App: React.FC = () => {
   }, [focusedItemId, navItems]);
 
   // Click handlers that also update focus state
-  const handleSessionClick = useCallback((sessionId: string) => {
+  const handleSessionClick = useCallback((sessionId: string, e?: React.MouseEvent) => {
+    if (e && (e.ctrlKey || e.metaKey)) {
+      // Ctrl+Click: toggle multi-select
+      toggleSessionSelection(sessionId);
+      return;
+    }
+    // Normal click: single-select, clear multi-select
+    clearMultiSelect();
     setActiveSessionId(sessionId);
     setActiveRemoteCode(null); // Clear remote session when switching to local
     setFocusedItemId(sessionId);
     setFocusedItemType('session');
-  }, [setActiveSessionId]);
+  }, [setActiveSessionId, toggleSessionSelection, clearMultiSelect]);
 
   const handleGroupHeaderClick = useCallback((groupId: string) => {
     setFocusedItemId(groupId);
@@ -818,7 +832,8 @@ const App: React.FC = () => {
     onCodeSearch: handleCodeSearch,
     onChatSearch: handleChatSearch,
     onCommandPalette: handleCommandPalette,
-  }), [handleKeyboardNewSession, handleNextSession, handlePrevSession, handleNextWaiting, handleCloseSession, handleFocusSidebar, handleNewGroup, handleNewSubGroup, handleNavigateUp, handleNavigateDown, handleCollapse, handleExpand, handleSelect, handleCodeSearch, handleChatSearch, handleCommandPalette]);
+    onEscapeMultiSelect: selectedSessionIds.size > 1 ? clearMultiSelect : undefined,
+  }), [handleKeyboardNewSession, handleNextSession, handlePrevSession, handleNextWaiting, handleCloseSession, handleFocusSidebar, handleNewGroup, handleNewSubGroup, handleNavigateUp, handleNavigateDown, handleCollapse, handleExpand, handleSelect, handleCodeSearch, handleChatSearch, handleCommandPalette, selectedSessionIds.size, clearMultiSelect]);
 
   useKeyboardShortcuts(shortcutHandlers);
 
@@ -1103,8 +1118,8 @@ const App: React.FC = () => {
                 {getSessionsByGroup(group.id).sort((a, b) => a.order - b.order).map(session => (
                   <div
                     key={session.id}
-                    className={`session ${session.id === activeSessionId ? 'active' : ''} ${focusedItemType === 'session' && focusedItemId === session.id ? 'item-focused' : ''} ${draggedItem?.type === 'session' && draggedItem.id === session.id ? 'dragging' : ''} ${dropTarget?.type === 'session' && dropTarget.id === session.id ? `drop-${dropTarget.position}` : ''}`}
-                    onClick={() => handleSessionClick(session.id)}
+                    className={`session ${session.id === activeSessionId ? 'active' : ''} ${selectedSessionIds.has(session.id) ? 'selected' : ''} ${focusedItemType === 'session' && focusedItemId === session.id ? 'item-focused' : ''} ${draggedItem?.type === 'session' && draggedItem.id === session.id ? 'dragging' : ''} ${dropTarget?.type === 'session' && dropTarget.id === session.id ? `drop-${dropTarget.position}` : ''}`}
+                    onClick={(e) => handleSessionClick(session.id, e)}
                     onContextMenu={(e) => handleSessionContextMenu(e, session.id, session.name)}
                     draggable
                     onDragStart={(e) => handleSessionDragStart(e, session.id, group.id)}
@@ -1297,8 +1312,8 @@ const App: React.FC = () => {
                   {getSessionsByGroup(subGroup.id).sort((a, b) => a.order - b.order).map(session => (
                     <div
                       key={session.id}
-                      className={`session ${session.id === activeSessionId ? 'active' : ''} ${focusedItemType === 'session' && focusedItemId === session.id ? 'item-focused' : ''} ${draggedItem?.type === 'session' && draggedItem.id === session.id ? 'dragging' : ''} ${dropTarget?.type === 'session' && dropTarget.id === session.id ? `drop-${dropTarget.position}` : ''}`}
-                      onClick={() => handleSessionClick(session.id)}
+                      className={`session ${session.id === activeSessionId ? 'active' : ''} ${selectedSessionIds.has(session.id) ? 'selected' : ''} ${focusedItemType === 'session' && focusedItemId === session.id ? 'item-focused' : ''} ${draggedItem?.type === 'session' && draggedItem.id === session.id ? 'dragging' : ''} ${dropTarget?.type === 'session' && dropTarget.id === session.id ? `drop-${dropTarget.position}` : ''}`}
+                      onClick={(e) => handleSessionClick(session.id, e)}
                       onContextMenu={(e) => handleSessionContextMenu(e, session.id, session.name)}
                       draggable
                       onDragStart={(e) => handleSessionDragStart(e, session.id, subGroup.id)}
@@ -1426,6 +1441,15 @@ const App: React.FC = () => {
 
       <main className="main">
         <div className="terminal-area">
+          {selectedSessionIds.size > 1 ? (
+            <OrchestratorView
+              selectedSessionIds={selectedSessionIds}
+              sessions={sessions}
+              onClearSelection={clearMultiSelect}
+              onFocusSession={(id) => { clearMultiSelect(); setActiveSessionId(id); }}
+            />
+          ) : (
+          <>
           {sessions.map(session => (
             <div
               key={session.id}
@@ -1503,6 +1527,8 @@ const App: React.FC = () => {
                 </>
               )}
             </div>
+          )}
+          </>
           )}
         </div>
       </main>

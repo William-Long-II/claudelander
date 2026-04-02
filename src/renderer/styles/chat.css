@@ -107,6 +107,17 @@
 .chat-status.idle { background: #2e2e3e; color: #707080; }
 .chat-status.error { background: #4b2b2b; color: #ff8080; }
 
+.chat-cost {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #1a3a2a;
+  color: #4eca8b;
+  font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  cursor: default;
+  white-space: nowrap;
+}
+
 /* Messages Area */
 .chat-messages {
   flex: 1;
