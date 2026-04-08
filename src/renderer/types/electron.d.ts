@@ -85,6 +85,10 @@ export interface ElectronAPI {
   chatCreateMessage: (input: any) => Promise<ChatMessage>;
   chatSearchMessages: (query: string, sessionId?: string, limit?: number) => Promise<ChatMessage[]>;
 
+  // Group & Session Import/Export
+  exportGroups: () => Promise<{ success: boolean; filePath?: string; error?: string; groupCount?: number; sessionCount?: number }>;
+  importGroups: () => Promise<{ success: boolean; error?: string; groupCount?: number; sessionCount?: number; skippedGroups?: number; skippedSessions?: number }>;
+
   // Preferences
   getPreference: (key: string) => Promise<string | null>;
   setPreference: (key: string, value: string) => Promise<void>;
