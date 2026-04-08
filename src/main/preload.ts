@@ -105,6 +105,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chatSearchMessages: (query: string, sessionId?: string, limit?: number) =>
     ipcRenderer.invoke('chat:searchMessages', query, sessionId, limit),
 
+  // Group & Session Import/Export
+  exportGroups: (): Promise<{ success: boolean; filePath?: string; error?: string; groupCount?: number; sessionCount?: number }> =>
+    ipcRenderer.invoke('export:groups'),
+  importGroups: (): Promise<{ success: boolean; error?: string; groupCount?: number; sessionCount?: number; skippedGroups?: number; skippedSessions?: number }> =>
+    ipcRenderer.invoke('import:groups'),
+
   // Preferences
   getPreference: (key: string): Promise<string | null> =>
     ipcRenderer.invoke('prefs:get', key),

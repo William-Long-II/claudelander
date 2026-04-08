@@ -10,6 +10,7 @@ import * as templatesRepo from './repositories/session-templates';
 import * as branchesRepo from './repositories/conversation-branches';
 import * as knowledgeRepo from './repositories/knowledge';
 import * as usageRepo from './repositories/usage';
+import { exportGroupsAndSessions, importGroupsAndSessions } from './group-import-export';
 import { randomUUID } from 'crypto';
 import { createApplicationMenu } from './menu';
 import { initAutoUpdater, checkForUpdatesManual, downloadUpdate } from './auto-updater';
@@ -1010,6 +1011,10 @@ safeHandle('skill:invoke', async (sessionId: string, skillId: string, userArgs: 
 safeHandle('skill:clear', (sessionId: string) => {
   sessionsRepo.updateSession(sessionId, { activeSkillId: null });
 });
+
+// Group & Session Import/Export
+safeHandle('export:groups', () => exportGroupsAndSessions());
+safeHandle('import:groups', () => importGroupsAndSessions());
 
 // Preferences IPC Handlers
 safeHandle('prefs:get', (key: string) => {
